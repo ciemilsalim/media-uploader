@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media Uploader (Laravel Lokal)</title>
+    <title>Media Uploader</title>
     
     <!-- Memuat Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,8 +12,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <!-- Memuat JavaScript APLIKASI -->
-    <!-- (Pastikan ini adalah path yang benar di server Anda) -->
-    <script src="{{ asset('js/upload.js') }}" defer></script>
+    <!-- 
+    --- PERBAIKAN (CACHE BUSTING) ---
+    Kita tambahkan "?v=" diikuti dengan timestamp kapan file .js terakhir diubah.
+    Ini memaksa browser (terutama di HP) untuk mengunduh file .js baru
+    setiap kali Anda mengeditnya di server, dan BUKAN menggunakan file lama dari cache.
+    -->
+    <script src="{{ asset('js/upload.js') }}?v={{ @filemtime(public_path('js/upload.js')) ?: time() }}" defer></script>
 
     <!-- Font (Desain Elegan) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
