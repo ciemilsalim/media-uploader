@@ -4,13 +4,12 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- Elemen UI ---
-    // ... (Elemen UI tidak berubah) ...
     const fileInput = document.getElementById('fileInput');
     const selectFileBtn = document.getElementById('selectFileBtn');
     const fileDescription = document.getElementById('fileDescription');
     const uploadBtn = document.getElementById('uploadBtn');
     const previewContainer = document.getElementById('previewContainer');
-    const progressBar = document.getElementById('progressBar');
+    const progressBarContainer = document.getElementById('progressBarContainer');
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
     const galleryContainer = document.getElementById('galleryContainer');
@@ -24,23 +23,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Fungsi Bantuan ---
 
-    // ... (Fungsi showStatus dan resetUploadForm tidak berubah) ...
+    // Fungsi untuk menampilkan pesan status
     function showStatus(message, isError = false) {
         statusMessage.textContent = message;
-        statusMessage.className = `p-3 rounded-md text-sm ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
+        statusMessage.className = `p-4 rounded-lg text-sm font-medium ${isError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
         statusMessage.classList.remove('hidden');
+        
+        // Gulir ke pesan status agar terlihat
+        statusMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
         setTimeout(() => {
             statusMessage.classList.add('hidden');
         }, 3000);
     }
 
+    // Fungsi untuk mereset form upload
     function resetUploadForm() {
         fileInput.value = null;
         currentFile = null;
         fileDescription.value = '';
         previewContainer.innerHTML = '';
         previewContainer.classList.add('hidden');
-        progressBar.classList.add('hidden');
+        progressBarContainer.classList.add('hidden');
         progressFill.style.width = '0%';
         progressText.textContent = '0%';
         uploadBtn.disabled = true;
@@ -48,17 +52,23 @@ document.addEventListener('DOMContentLoaded', () => {
         selectFileBtn.disabled = false;
     }
 
-
     // --- Logika Utama ---
 
     // 1. Memicu Input File
     selectFileBtn.addEventListener('click', () => {
+        // --- PERBAIKAN UNTUK HP ---
+        // Reset file input dan currentFile SETIAP KALI tombol diklik.
+        // Ini memaksa event 'change' untuk terpicu lagi
+        // bahkan jika file yang sama dipilih.
+        fileInput.value = null;
+        currentFile = null;
+        // --- AKHIR PERBAIKAN ---
         fileInput.click();
     });
 
-    // 2. Menangani Pemilihan File & Menampilkan Preview
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
+    // --- FUNGSI BARU (Refaktor dari event 'change') ---
+    // Fungsi ini menangani logika preview
+    function handleFileSelection(file) {
         if (!file) return;
 
         currentFile = file;
@@ -71,24 +81,44 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fileType === 'image') {
             previewElement = document.createElement('img');
             previewElement.src = URL.createObjectURL(file);
-            previewElement.className = 'max-w-full h-auto rounded-md shadow-md';
+            previewElement.className = 'max-w-full h-auto rounded-lg shadow-md';
         } else if (fileType === 'video') {
             previewElement = document.createElement('video');
             previewElement.src = URL.createObjectURL(file);
-            previewElement.className = 'max-w-full h-auto rounded-md shadow-md';
-            previewElement.controls = true; // Kode ini sudah ada
+            previewElement.className = 'max-w-full h-auto rounded-lg shadow-md';
+            previewElement.controls = true;
         } else {
             previewElement = document.createElement('p');
             previewElement.textContent = `File: ${file.name} (${file.type})`;
-            previewElement.className = 'text-gray-600';
+            previewElement.className = 'text-slate-600';
         }
 
         previewContainer.appendChild(previewElement);
         uploadBtn.disabled = false; // Aktifkan tombol upload
+    }
+    // --- AKHIR FUNGSI BARU ---
+
+
+    // 2. Menangani Pemilihan File & Menampilkan Preview
+    fileInput.addEventListener('change', (e) => {
+        // Panggil fungsi baru kita
+        handleFileSelection(e.target.files[0]);
     });
 
+    // --- PERBAIKAN UNTUK HP (Menangani 'focus' saat kembali dari kamera) ---
+    window.addEventListener('focus', () => {
+        // Jeda singkat untuk memberi waktu browser mengambil file
+        setTimeout(() => {
+            // Cek jika file input memiliki file DAN kita belum memprosesnya
+            if (fileInput.files.length > 0 && !currentFile) {
+                console.log('File terdeteksi dari event "focus" (kembali dari kamera).');
+                handleFileSelection(fileInput.files[0]);
+            }
+        }, 100); // 100ms jeda
+    });
+    // --- AKHIR PERBAIKAN ---
+
     // 3. Mengunggah File ke Server Laravel (AJAX)
-    // ... (Fungsi upload tidak berubah) ...
     uploadForm.addEventListener('submit', (e) => {
         e.preventDefault(); // Mencegah form submit normal
 
@@ -100,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadBtn.disabled = true;
         uploadBtn.textContent = 'Mengunggah...';
         selectFileBtn.disabled = true;
-        progressBar.classList.remove('hidden');
+        progressBarContainer.classList.remove('hidden');
 
         // Buat FormData untuk mengirim file
         const formData = new FormData();
@@ -138,8 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = JSON.parse(xhr.responseText);
                     if(response.errors && response.errors.file) {
                         errorMessage = `Upload gagal: ${response.errors.file[0]}`;
-                    } else if (response.message) {
-                        errorMessage = `Upload gagal: ${response.message}`;
                     }
                 } catch (e) {}
                 showStatus(errorMessage, true);
@@ -159,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 4. Memuat dan Menampilkan File dari Server Laravel
-    // ... (Fungsi loadFiles tidak berubah) ...
     async function loadFiles() {
         try {
             const response = await fetch('/media');
@@ -170,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             galleryContainer.innerHTML = ''; // Bersihkan galeri
             if (files.length === 0) {
-                galleryContainer.innerHTML = '<p class="text-gray-500">Belum ada file yang diunggah.</p>';
+                galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Belum ada file yang diunggah.</p>';
                 return;
             }
 
@@ -181,14 +208,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error loading files:", error);
+            galleryContainer.innerHTML = '<p class="text-red-500 col-span-full">Gagal memuat data galeri. Coba refresh halaman.</p>';
             showStatus(error.message, true);
         }
     }
 
-    // 5. Membuat Tampilan Kartu File
+    // 5. Membuat Tampilan Kartu File (Desain Baru)
     function createFileCard(docId, data) {
         const card = document.createElement('div');
-        card.className = 'bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-xl';
+        card.className = 'bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl border border-slate-200';
 
         let mediaElement;
         const fileType = data.file_type.split('/')[0];
@@ -197,10 +225,10 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaElement = document.createElement('img');
             mediaElement.src = data.download_url;
             mediaElement.alt = data.description || 'Uploaded image';
-            mediaElement.className = 'w-full h-48 object-cover';
+            mediaElement.className = 'w-full h-48 object-cover bg-slate-100';
             
             mediaElement.onerror = () => {
-                // Ganti dengan placeholder jika gambar gagal dimuat (mis: 403 Forbidden)
+                console.error(`GAGAL MEMUAT GAMBAR di URL: ${mediaElement.src}`);
                 mediaElement.src = `https://placehold.co/600x400/eee/ccc?text=Image+Error`;
             };
 
@@ -211,8 +239,8 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaElement.className = 'w-full h-48 bg-black';
         } else {
             mediaElement = document.createElement('div');
-            mediaElement.className = 'w-full h-48 bg-gray-200 flex items-center justify-center';
-            mediaElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
+            mediaElement.className = 'w-full h-48 bg-slate-200 flex items-center justify-center';
+            mediaElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`;
         }
         card.appendChild(mediaElement);
 
@@ -220,49 +248,50 @@ document.addEventListener('DOMContentLoaded', () => {
         infoDiv.className = 'p-4';
         
         const desc = document.createElement('p');
-        desc.className = 'text-gray-700 mb-2 break-words'; // break-words untuk deskripsi panjang
+        desc.className = 'text-slate-700 font-medium mb-2 truncate';
         desc.textContent = data.description || 'Tidak ada deskripsi';
         infoDiv.appendChild(desc);
         
         const fileName = document.createElement('p');
-        fileName.className = 'text-sm text-gray-500 truncate mb-2';
+        fileName.className = 'text-sm text-slate-500 truncate mb-2';
         fileName.textContent = data.file_name;
         infoDiv.appendChild(fileName);
 
         const timestamp = document.createElement('p');
-        timestamp.className = 'text-xs text-gray-400 mb-4';
-        timestamp.textContent = new Date(data.created_at).toLocaleString('id-ID');
+        timestamp.className = 'text-xs text-slate-400 mb-4';
+        timestamp.textContent = new Date(data.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
         infoDiv.appendChild(timestamp);
 
-        // --- PENAMBAHAN BARU: Tombol Download ---
-        const downloadBtn = document.createElement('a');
-        // Kita gunakan ID file untuk membuat URL download yang benar
-        downloadBtn.href = `/media/${docId}/download`;
-        downloadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Download`;
-        downloadBtn.className = 'flex items-center justify-center w-full px-3 py-2 text-sm rounded-md transition-colors bg-blue-500 text-white hover:bg-blue-600';
-        // --- AKHIR PENAMBAHAN ---
+        // --- PERUBAHAN DESAIN (Tombol) ---
+        const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'flex space-x-2';
 
+        // Tombol Download
+        const downloadBtn = document.createElement('a');
+        downloadBtn.href = `/media/download/${docId}`;
+        downloadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>`;
+        downloadBtn.className = 'flex items-center justify-center w-full px-3 py-2 text-sm rounded-lg transition-colors bg-slate-600 text-white hover:bg-slate-700';
+        downloadBtn.setAttribute('title', 'Download file');
+        
         // Tombol Hapus
         const deleteBtn = document.createElement('button');
-        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Hapus`;
-        deleteBtn.className = 'flex items-center justify-center w-full px-3 py-2 text-sm rounded-md transition-colors bg-red-500 text-white hover:bg-red-600';
+        deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`;
+        deleteBtn.className = 'flex items-center justify-center px-3 py-2 text-sm rounded-lg transition-colors bg-red-600 text-white hover:bg-red-700';
+        deleteBtn.setAttribute('title', 'Hapus file');
+        
         deleteBtn.onclick = () => showDeleteConfirmation(docId);
         
-        // --- PENAMBAHAN BARU: Kontainer untuk tombol ---
-        const buttonContainer = document.createElement('div');
-        // Kita gunakan flex-col (tumpuk vertikal) dan beri jarak
-        buttonContainer.className = 'flex flex-col gap-2'; 
-        buttonContainer.appendChild(downloadBtn); // Tambahkan tombol download
-        buttonContainer.appendChild(deleteBtn); // Tambahkan tombol hapus
-        infoDiv.appendChild(buttonContainer);
-        // --- AKHIR PENAMBAHAN ---
+        buttonGroup.appendChild(downloadBtn);
+        buttonGroup.appendChild(deleteBtn);
         
+        infoDiv.appendChild(buttonGroup);
+        // --- AKHIR PERUBAHAN ---
+
         card.appendChild(infoDiv);
         return card;
     }
 
     // 6. Menghapus File (dari Storage dan Database via Laravel)
-    // ... (Fungsi deleteFile tidak berubah) ...
     async function deleteFile(docId) {
         console.log(`Deleting doc: ${docId}`);
         document.getElementById('deleteModal').classList.add('hidden');
@@ -290,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Modal Konfirmasi Hapus ---
-    // ... (Fungsi showDeleteConfirmation tidak berubah) ...
     function showDeleteConfirmation(docId) {
         const modal = document.getElementById('deleteModal');
         const confirmBtn = document.getElementById('confirmDeleteBtn');
@@ -302,7 +330,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
         
+        // --- PERBAIKAN ---
+        // Menghapus 'D' yang salah ketik
         newConfirmBtn.onclick = () => deleteFile(docId);
+        // --- AKHIR PERBAIKAN ---
         cancelBtn.onclick = () => modal.classList.add('hidden');
     }
 
