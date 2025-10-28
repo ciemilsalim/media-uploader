@@ -11,25 +11,17 @@
     <!-- WAJIB: CSRF Token untuk keamanan Laravel -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <!-- Memuat JavaScript APLIKASI -->
     <!-- 
-    --- PERBAIKAN (CACHE BUSTING) ---
-    Kita tambahkan "?v=" diikuti dengan timestamp kapan file .js terakhir diubah.
-    Ini memaksa browser (terutama di HP) untuk mengunduh file .js baru
-    setiap kali Anda mengeditnya di server, dan BUKAN menggunakan file lama dari cache.
+    --- PERUBAHAN ---
+    Memuat file JavaScript (upload-v2.js) yang telah diperbarui 
+    untuk menangani 3 tombol baru.
     -->
-    <script src="{{ asset('js/upload.js') }}?v={{ @filemtime(public_path('js/upload.js')) ?: time() }}" defer></script>
+    <script src="{{ asset('js/upload-v2.js') }}?v={{ @filemtime(public_path('js/upload-v2.js')) ?: time() }}" defer></script>
 
     <!-- Font (Desain Elegan) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- 
-    --- PWA DINONAKTIFKAN ---
-    <meta name="theme-color" content="#ffffff">
-    <link rel="manifest" href="{{ asset('manifest.json') }}">
-    -->
 
     <style>
         body {
@@ -56,17 +48,43 @@
             <form id="uploadForm">
                 <h2 class="text-xl font-semibold mb-5 text-slate-800">Upload File Baru</h2>
                 
-                <!-- Input File Tersembunyi -->
-                <input type="file" id="fileInput" accept="image/*,video/*" class="hidden">
+                <!-- 
+                --- PERUBAHAN ---
+                Kita membuat 3 input tersembunyi yang terpisah.
+                'capture' memaksa HP membuka kamera.
+                -->
+                <input type="file" id="photoInput" accept="image/*" capture="camera" class="hidden">
+                <input type="file" id="videoInput" accept="video/*" capture="camcorder" class="hidden">
+                <input type="file" id="galleryInput" accept="image/*,video/*" class="hidden">
 
-                <!-- Tombol Pilih File (Desain Elegan) -->
-                <button type="button" id="selectFileBtn" class="w-full flex items-center justify-center gap-3 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                    Pilih Foto atau Rekam Video
-                </button>
-                <p class="text-xs text-slate-500 mt-2 mb-4 text-center">Di HP, ini akan memunculkan pilihan kamera.</p>
+                <!-- 
+                --- PERUBAHAN ---
+                Mengganti 1 tombol menjadi 3 tombol terpisah untuk UX yang lebih baik di HP.
+                -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <!-- Tombol Ambil Foto -->
+                    <button type="button" id="takePhotoBtn" class="w-full flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Ambil Foto
+                    </button>
+                    <!-- Tombol Rekam Video -->
+                    <button type="button" id="recordVideoBtn" class="w-full flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Rekam Video
+                    </button>
+                    <!-- Tombol Pilih Galeri -->
+                    <button type="button" id="selectGalleryBtn" class="w-full flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Pilih Galeri
+                    </button>
+                </div>
 
                 <!-- Preview -->
                 <div id="previewContainer" class="hidden my-4 border border-slate-200 rounded-lg p-2 bg-slate-50">
@@ -123,22 +141,6 @@
             </div>
         </div>
     </div>
-
-    <!-- 
-    --- PWA DINONAKTIFKAN ---
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').then(registration => {
-                    console.log('ServiceWorker berhasil didaftarkan: ', registration.scope);
-                }).catch(error => {
-                    console.log('Pendaftaran ServiceWorker gagal: ', error);
-                });
-            });
-        }
-    </script> 
-    -->
-
 </body>
 </html>
 
