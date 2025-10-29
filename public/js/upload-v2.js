@@ -192,14 +192,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Panggil addFilesToQueue saat SALAH SATU input berubah
     if (photoInput) {
-        photoInput.addEventListener('change', (e) => addFilesToQueue(e.target.files));
+        photoInput.addEventListener('change', (e) => {
+            addFilesToQueue(e.target.files);
+            // --- PERBAIKAN BUG DUPLIKAT ---
+            // Bersihkan input segera agar event 'focus' tidak memicunya lagi
+            e.target.value = null;
+            // --- AKHIR PERBAIKAN ---
+        });
     }
     if (videoInput) {
         // Input video (capture) biasanya hanya 1 file, tapi kita tetap perlakukan sebagai antrian
-        videoInput.addEventListener('change', (e) => addFilesToQueue(e.target.files));
+        videoInput.addEventListener('change', (e) => {
+            addFilesToQueue(e.target.files);
+            // --- PERBAIKAN BUG DUPLIKAT ---
+            e.target.value = null;
+            // --- AKHIR PERBAIKAN ---
+        });
     }
     if (galleryInput) {
-        galleryInput.addEventListener('change', (e) => addFilesToQueue(e.target.files));
+        galleryInput.addEventListener('change', (e) => {
+            addFilesToQueue(e.target.files);
+            // --- PERBAIKAN BUG DUPLIKAT ---
+            e.target.value = null;
+            // --- AKHIR PERBAIKAN ---
+        });
     }
     // --- AKHIR PERUBAHAN BESAR ---
 
@@ -220,6 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 200); // Beri jeda lebih lama
     });
+
+// ... (Sisa file tidak berubah) ...
 
     // --- PERUBAHAN BESAR ---
     // 5. Mengunggah SEMUA File (Satu per Satu)
