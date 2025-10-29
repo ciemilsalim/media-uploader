@@ -331,12 +331,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateText = new Date(data.created_at).toLocaleDateString('id-ID');
         timestamp.textContent = `${fileTypeText} · ${dateText}`;
         infoDiv.appendChild(timestamp);
-
+        // Grup Tombol (Download & Hapus)
         const buttonGroup = document.createElement('div');
-        buttonGroup.className = 'flex space-x-2';
+        // Tombol Download
+        const downloadBtn = document.createElement('a'); // 'a' agar bisa di-download
+        
+        // --- PERBAIKAN BUG 404 (URL SALAH) ---
+        // URL yang benar adalah /media/{id}/download
+        // Bukan /media/download/{id}
+        downloadBtn.href = `/media/${docId}/download`; // Link ke rute download
+        // --- AKHIR PERBAIKAN ---
 
-        const downloadBtn = document.createElement('a'); 
-        downloadBtn.href = `/media/download/${docId}`; 
         downloadBtn.className = 'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium';
         downloadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Download`;
         buttonGroup.appendChild(downloadBtn);
@@ -400,3 +405,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Muat galeri saat halaman pertama kali dibuka
     loadFiles();
 });
+
