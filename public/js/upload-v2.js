@@ -331,8 +331,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateText = new Date(data.created_at).toLocaleDateString('id-ID');
         timestamp.textContent = `${fileTypeText} · ${dateText}`;
         infoDiv.appendChild(timestamp);
+
+        // --- PERBAIKAN TATA LETAK TOMBOL ---
         // Grup Tombol (Download & Hapus)
         const buttonGroup = document.createElement('div');
+        // Menambahkan 'flex space-x-2' agar tombol sejajar dan ada jarak
+        buttonGroup.className = 'flex space-x-2';
+        // --- AKHIR PERBAIKAN ---
+
         // Tombol Download
         const downloadBtn = document.createElement('a'); // 'a' agar bisa di-download
         
