@@ -52,10 +52,11 @@
                 --- PERUBAHAN ---
                 Kita membuat 3 input tersembunyi yang terpisah.
                 'capture' memaksa HP membuka kamera.
+                'multiple' mengizinkan pemilihan banyak file.
                 -->
-                <input type="file" id="photoInput" accept="image/*" capture="camera" class="hidden">
+                <input type="file" id="photoInput" accept="image/*" capture="camera" class="hidden" multiple>
                 <input type="file" id="videoInput" accept="video/*" capture="camcorder" class="hidden">
-                <input type="file" id="galleryInput" accept="image/*,video/*" class="hidden">
+                <input type="file" id="galleryInput" accept="image/*,video/*" class="hidden" multiple>
 
                 <!-- 
                 --- PERUBAHAN ---
@@ -87,7 +88,11 @@
                 </div>
 
                 <!-- Preview -->
-                <div id="previewContainer" class="hidden my-4 border border-slate-200 rounded-lg p-2 bg-slate-50">
+                <!-- 
+                --- PERUBAHAN ---
+                Mengubah preview menjadi grid agar bisa menampilkan banyak thumbnail
+                -->
+                <div id="previewContainer" class="hidden my-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                     <!-- Preview gambar/video akan muncul di sini -->
                 </div>
                 

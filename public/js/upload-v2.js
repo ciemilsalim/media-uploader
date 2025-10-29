@@ -1,42 +1,36 @@
 /*
-File JavaScript V2 untuk Media Uploader
+File JavaScript V3 (di-upgrade dari V2) untuk Media Uploader
 Perubahan:
-- Menangani 3 tombol input terpisah (Ambil Foto, Rekam Video, Pilih Galeri)
+- Logika Multi-Upload: Menangani antrian file (array) bukan satu file.
+- Multi-Preview: Menampilkan thumbnail untuk setiap file dalam antrian.
+- Tombol Hapus per-File: Setiap thumbnail memiliki tombol 'x' untuk menghapusnya dari antrian.
+- Upload Berurutan: Mengunggah file satu per satu menggunakan deskripsi yang sama.
 */
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- Elemen UI ---
-    
-    // --- PERUBAHAN ---
-    // Input tersembunyi
     const photoInput = document.getElementById('photoInput');
     const videoInput = document.getElementById('videoInput');
     const galleryInput = document.getElementById('galleryInput');
-
-    // Tombol Pilihan
     const takePhotoBtn = document.getElementById('takePhotoBtn');
     const recordVideoBtn = document.getElementById('recordVideoBtn');
     const selectGalleryBtn = document.getElementById('selectGalleryBtn');
-    // --- AKHIR PERUBAHAN ---
-
     const fileDescription = document.getElementById('fileDescription');
     const uploadBtn = document.getElementById('uploadBtn');
     const previewContainer = document.getElementById('previewContainer');
-    
-    // Progress Bar
     const progressBarContainer = document.getElementById('progressBarContainer');
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
-    
     const galleryContainer = document.getElementById('galleryContainer');
     const statusMessage = document.getElementById('statusMessage');
     const uploadForm = document.getElementById('uploadForm');
-
-    // Ambil CSRF token dari meta tag di <head>
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    // Variabel untuk menyimpan file yang dipilih
-    let currentFile = null;
+    // --- PERUBAHAN BESAR ---
+    // Mengganti 'currentFile' (satu objek) menjadi 'filesToUpload' (sebuah array)
+    let filesToUpload = [];
+    // --- AKHIR PERUBAHAN ---
+
 
     // --- Fungsi Bantuan ---
 
@@ -45,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
         statusMessage.textContent = message;
         statusMessage.className = `p-4 rounded-lg text-sm mb-6 ${isError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
         statusMessage.classList.remove('hidden');
-        
         setTimeout(() => {
             statusMessage.classList.add('hidden');
         }, 3000);
@@ -53,16 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Mereset form upload ke keadaan awal
     function resetUploadForm() {
-        // --- PERUBAHAN ---
-        // Reset semua input file
         if (photoInput) photoInput.value = null;
         if (videoInput) videoInput.value = null;
         if (galleryInput) galleryInput.value = null;
+
+        // --- PERUBAHAN ---
+        filesToUpload = []; // Kosongkan array antrian
         // --- AKHIR PERUBAHAN ---
 
-        currentFile = null;
         fileDescription.value = '';
-        previewContainer.innerHTML = '';
+        previewContainer.innerHTML = ''; // Kosongkan preview
         previewContainer.classList.add('hidden');
         
         if (progressBarContainer) {
@@ -83,17 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
             </svg>
             Upload File`;
         
-        // --- PERUBAHAN ---
-        // Aktifkan kembali semua tombol pilihan
         if (takePhotoBtn) takePhotoBtn.disabled = false;
         if (recordVideoBtn) recordVideoBtn.disabled = false;
         if (selectGalleryBtn) selectGalleryBtn.disabled = false;
-        // --- AKHIR PERUBAHAN ---
     }
 
     // --- Logika Inti ---
 
-    // --- PERUBAHAN ---
     // 1. Memicu Input File yang Sesuai
     if (takePhotoBtn) {
         takePhotoBtn.addEventListener('click', () => {
@@ -101,91 +90,152 @@ document.addEventListener('DOMContentLoaded', () => {
             photoInput.click();
         });
     }
-
     if (recordVideoBtn) {
         recordVideoBtn.addEventListener('click', () => {
             videoInput.value = null; 
             videoInput.click();
         });
     }
-
     if (selectGalleryBtn) {
         selectGalleryBtn.addEventListener('click', () => {
             galleryInput.value = null; 
             galleryInput.click();
         });
     }
-    // --- AKHIR PERUBAHAN ---
 
+    // --- PERUBAHAN BESAR ---
+    // 2. Menambah File ke Antrian dan Menampilkan Preview
+    function addFilesToQueue(newFiles) {
+        // 'newFiles' adalah objek FileList, kita ubah jadi Array
+        for (const file of newFiles) {
+            // Beri ID unik untuk keperluan menghapus
+            file.uniqueId = Date.now().toString() + Math.random().toString();
+            
+            // Tambahkan file ke array antrian kita
+            filesToUpload.push(file);
+            
+            // Buat elemen preview untuk file ini
+            createPreviewElement(file);
+        }
 
-    // 2. Menangani Pemilihan File & Menampilkan Preview
-    function handleFileSelection(file) {
-        if (!file) return;
+        // Jika ada file dalam antrian, aktifkan tombol upload
+        if (filesToUpload.length > 0) {
+            uploadBtn.disabled = false;
+        }
+    }
 
-        currentFile = file; // Simpan file di variabel global
+    // 3. Membuat Elemen Preview (Thumbnail)
+    function createPreviewElement(file) {
         previewContainer.classList.remove('hidden');
-        previewContainer.innerHTML = ''; // Bersihkan preview lama
 
         const fileType = file.type.split('/')[0];
         let previewElement;
 
+        // Buat wrapper untuk thumbnail
+        const previewWrapper = document.createElement('div');
+        previewWrapper.className = 'relative w-full h-24 rounded-lg overflow-hidden shadow-md border-2 border-slate-200';
+        // Simpan ID unik di elemen DOM untuk referensi
+        previewWrapper.id = `preview-${file.uniqueId}`;
+
         if (fileType === 'image') {
             previewElement = document.createElement('img');
             previewElement.src = URL.createObjectURL(file);
-            previewElement.className = 'max-w-full h-auto rounded-lg shadow-md';
+            previewElement.className = 'w-full h-full object-cover';
         } else if (fileType === 'video') {
             previewElement = document.createElement('video');
             previewElement.src = URL.createObjectURL(file);
-            previewElement.className = 'max-w-full h-auto rounded-lg shadow-md bg-black';
-            previewElement.controls = true;
+            previewElement.className = 'w-full h-full object-cover bg-black';
+            previewElement.muted = true; // Video tidak bersuara di preview
         } else {
-            previewElement = document.createElement('p');
-            previewElement.textContent = `File: ${file.name} (${file.type})`;
-            previewElement.className = 'text-slate-600 p-4 bg-slate-100 rounded-lg';
+            previewElement = document.createElement('div');
+            previewElement.className = 'w-full h-full bg-slate-100 flex items-center justify-center p-2';
+            previewElement.innerHTML = `<span class="text-xs text-slate-500 text-center truncate">${file.name}</span>`;
         }
 
-        previewContainer.appendChild(previewElement);
-        uploadBtn.disabled = false; // Aktifkan tombol upload
+        // Buat tombol Hapus (X)
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'absolute top-1 right-1 w-6 h-6 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-colors';
+        removeBtn.innerHTML = '&times;';
+        
+        // Tambahkan event listener ke tombol Hapus
+        removeBtn.onclick = (e) => {
+            e.stopPropagation(); // Hentikan event agar tidak memicu hal lain
+            removeFileFromQueue(file.uniqueId);
+        };
+
+        // Masukkan elemen-elemen ke wrapper
+        previewWrapper.appendChild(previewElement);
+        previewWrapper.appendChild(removeBtn);
+
+        // Masukkan wrapper ke kontainer preview
+        previewContainer.appendChild(previewWrapper);
     }
 
-    // --- PERUBAHAN ---
-    // Panggil handleFileSelection saat SALAH SATU input berubah
+    // 4. Menghapus File dari Antrian
+    function removeFileFromQueue(uniqueId) {
+        // Hapus file dari array
+        filesToUpload = filesToUpload.filter(f => f.uniqueId !== uniqueId);
+
+        // Hapus elemen preview dari DOM
+        const previewElement = document.getElementById(`preview-${uniqueId}`);
+        if (previewElement) {
+            previewElement.remove();
+        }
+
+        // Jika tidak ada file lagi, nonaktifkan tombol upload
+        if (filesToUpload.length === 0) {
+            uploadBtn.disabled = true;
+            previewContainer.classList.add('hidden');
+        }
+    }
+
+    // Panggil addFilesToQueue saat SALAH SATU input berubah
     if (photoInput) {
-        photoInput.addEventListener('change', (e) => handleFileSelection(e.target.files[0]));
+        photoInput.addEventListener('change', (e) => addFilesToQueue(e.target.files));
     }
     if (videoInput) {
-        videoInput.addEventListener('change', (e) => handleFileSelection(e.target.files[0]));
+        // Input video (capture) biasanya hanya 1 file, tapi kita tetap perlakukan sebagai antrian
+        videoInput.addEventListener('change', (e) => addFilesToQueue(e.target.files));
     }
     if (galleryInput) {
-        galleryInput.addEventListener('change', (e) => handleFileSelection(e.target.files[0]));
+        galleryInput.addEventListener('change', (e) => addFilesToQueue(e.target.files));
     }
-    // --- AKHIR PERUBAHAN ---
+    // --- AKHIR PERUBAHAN BESAR ---
 
 
     // --- PERBAIKAN PREVIEW KAMERA HP ---
-    // Ini sekarang harus memantau semua input
+    // (Disederhanakan karena addFilesToQueue sudah menangani semuanya)
     window.addEventListener('focus', () => {
         setTimeout(() => {
-            let activeInput = null;
-            if (photoInput && photoInput.files.length > 0) activeInput = photoInput;
-            else if (videoInput && videoInput.files.length > 0) activeInput = videoInput;
-            else if (galleryInput && galleryInput.files.length > 0) activeInput = galleryInput;
-
-            if (activeInput && !currentFile) {
-                console.log('Fokus terdeteksi, memicu preview HP...');
-                handleFileSelection(activeInput.files[0]);
+            // Cukup periksa apakah ada file di input yang belum masuk antrian
+            // (Logika ini mungkin perlu disempurnakan, tapi kita coba dulu)
+            if (photoInput && photoInput.files.length > 0) {
+                addFilesToQueue(photoInput.files);
+                photoInput.value = null; // Kosongkan setelah diambil
             }
-        }, 100); 
+            if (videoInput && videoInput.files.length > 0) {
+                addFilesToQueue(videoInput.files);
+                videoInput.value = null;
+            }
+        }, 200); // Beri jeda lebih lama
     });
 
-    // 3. Mengunggah File ke Server Laravel (AJAX)
-    uploadForm.addEventListener('submit', (e) => {
+    // --- PERUBAHAN BESAR ---
+    // 5. Mengunggah SEMUA File (Satu per Satu)
+    uploadForm.addEventListener('submit', async (e) => {
         e.preventDefault(); 
 
-        if (!currentFile) {
+        if (filesToUpload.length === 0) {
             showStatus("Silakan pilih file terlebih dahulu.", true);
             return;
         }
+
+        // --- PERBAIKAN: Penomoran Deskripsi ---
+        // Ambil deskripsi DASAR, dan trim spasi
+        const baseDescription = fileDescription.value.trim();
+        // --- AKHIR PERBAIKAN ---
+        const totalFiles = filesToUpload.length;
 
         // Tampilkan UI "Mengunggah..."
         uploadBtn.disabled = true;
@@ -196,69 +246,103 @@ document.addEventListener('DOMContentLoaded', () => {
             </svg>
             Mengunggah...`;
         
-        // --- PERUBAHAN ---
-        // Nonaktifkan semua tombol pilihan
         if (takePhotoBtn) takePhotoBtn.disabled = true;
         if (recordVideoBtn) recordVideoBtn.disabled = true;
         if (selectGalleryBtn) selectGalleryBtn.disabled = true;
-        // --- AKHIR PERUBAHAN ---
         
         if (progressBarContainer) {
             progressBarContainer.classList.remove('hidden');
         }
 
-        const formData = new FormData();
-        formData.append('file', currentFile);
-        formData.append('description', fileDescription.value);
+        let successCount = 0;
+        let errorCount = 0;
 
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/media/upload', true);
-        
-        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
-        xhr.setRequestHeader('Accept', 'application/json');
+        // Loop dan upload file satu per satu
+        for (let i = 0; i < totalFiles; i++) {
+            const file = filesToUpload[i];
 
-        xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-                const progress = (event.loaded / event.total) * 100;
-                if (progressFill) {
-                    progressFill.style.width = `${progress}%`;
-                }
-                if (progressText) {
-                    progressText.textContent = `${Math.round(progress)}%`;
-                }
+            // Update progress bar
+            if (progressText) {
+                progressText.textContent = `Mengunggah ${i + 1} / ${totalFiles} (${file.name})...`;
             }
-        };
 
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                showStatus("File berhasil diunggah!", false);
-                resetUploadForm();
-                loadFiles(); 
-            } else {
-                console.error("Upload failed:", xhr.responseText);
-                let errorMessage = "Upload gagal. Silakan coba lagi.";
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    if(response.errors && response.errors.file) {
-                        errorMessage = `Upload gagal: ${response.errors.file[0]}`;
+            // --- PERBAIKAN: Penomoran Deskripsi Otomatis ---
+            let finalDescription = baseDescription;
+            // Hanya tambahkan nomor jika deskripsi diisi DAN total file lebih dari 1
+            if (baseDescription !== '' && totalFiles > 1) {
+                finalDescription = `${baseDescription}-${i + 1}`; // Mis: "Kegiatan-1"
+            }
+            // --- AKHIR PERBAIKAN ---
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('description', finalDescription); // Gunakan deskripsi yang sudah dinomori
+
+            try {
+                // Gunakan fungsi uploadFile (didefinisikan di bawah) yang mengembalikan Promise
+                // Ini akan meng-handle progress bar per file
+                await uploadFile(formData, (progress) => {
+                    if (progressFill) {
+                        progressFill.style.width = `${progress * 100}%`;
                     }
-                } catch (e) {}
-                showStatus(errorMessage, true);
-                resetUploadForm();
+                });
+                successCount++;
+            } catch (error) {
+                errorCount++;
+                console.error(`Gagal mengunggah ${file.name}:`, error);
+                // Jangan hentikan loop, lanjut ke file berikutnya
             }
-        };
+        }
 
-        xhr.onerror = () => {
-            console.error("Upload failed (network error).");
-            showStatus("Upload gagal. Periksa koneksi Anda.", true);
-            resetUploadForm();
-        };
-
-        xhr.send(formData);
+        // Selesai
+        if (errorCount > 0) {
+            showStatus(`Selesai: ${successCount} file berhasil, ${errorCount} file gagal.`, true);
+        } else {
+            showStatus(`Semua ${successCount} file berhasil diunggah!`, false);
+        }
+        
+        resetUploadForm();
+        loadFiles(); // Muat ulang galeri setelah semua selesai
     });
+
+    // 6. Fungsi Helper untuk Upload (menggunakan Promise)
+    function uploadFile(formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/media/upload', true);
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+            xhr.setRequestHeader('Accept', 'application/json');
+
+            // Listener progres upload per file
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    onProgress(event.loaded / event.total); // Kirim progres (0.0 sampai 1.0)
+                }
+            };
+
+            // Listener saat upload selesai
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr.response); // Sukses
+                } else {
+                    reject(xhr.response); // Gagal (mis: error validasi)
+                }
+            };
+
+            // Listener saat error koneksi
+            xhr.onerror = () => {
+                reject('Network error');
+            };
+
+            xhr.send(formData);
+        });
+    }
+    // --- AKHIR PERUBAHAN BESAR ---
+
 
     // 4. Memuat dan Menampilkan File dari Server Laravel
     async function loadFiles() {
+// ... (Sisa file sama seperti V2) ...
         if (!galleryContainer) return;
 
         galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Memuat file...</p>';
