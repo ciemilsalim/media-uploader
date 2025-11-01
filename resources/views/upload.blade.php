@@ -14,6 +14,12 @@
     <!-- Memuat JavaScript APLIKASI -->
     <script src="{{ asset('js/upload-v2.js') }}?v={{ @filemtime(public_path('js/upload-v2.js')) ?: time() }}" defer></script>
 
+    <!-- === PERUBAHAN FAVICON === -->
+    <!-- Menggunakan logo baru Favicon.png dari public/images/ -->
+    <link rel="icon" href="{{ asset('images/Favicon.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ asset('images/Favicon.png') }}">
+    <!-- === AKHIR FAVICON === -->
+
     <!-- Font (Inter) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
