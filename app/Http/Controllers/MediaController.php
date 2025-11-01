@@ -1,7 +1,7 @@
 <?php
 
-namespace App\Http\Controllers;
-
+namespace App\Http\Controllers; // --- INI PERBAIKANNYA ---
+use Illuminate\Routing\Controller; // --- PERBAIKAN KRUSIAL: Baris ini ditambahkan ---
 use App\Models\Media;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -162,20 +162,37 @@ class MediaController extends Controller
                 throw new \Exception('File font tidak ditemukan di ' . $fontPath);
             }
             
+            // --- PERBAIKAN: UKURAN WATERMARK DINAMIS ---
+            // Hitung ukuran font & padding berdasarkan lebar gambar
+            $imageWidth = $img->width();
+            
+            // 1. Ukuran Font Dinamis: (mis: 1/45 dari lebar, dengan min 16px)
+            $fontSize = max(16, (int) round($imageWidth / 45));
+            
+            // 2. Padding Dinamis: (mis: 75% dari ukuran font, dengan min 10px)
+            $padding = max(10, (int) round($fontSize * 0.75));
+            
+            // 3. Tinggi Box Dinamis: (cukup untuk 3 baris teks + padding atas/bawah)
+            // Perkiraan tinggi per baris = 1.25 * $fontSize. Total 3.75 * $fontSize.
+            $textBlockHeight = (int) round($fontSize * 3.75);
+            $boxHeight = $textBlockHeight + ($padding * 2);
+            // --- AKHIR PERBAIKAN ---
+
             // --- PERBAIKAN SINTAKS V3 (drawRectangle) ---
             // (Upgrade Desain) Tambahkan kotak latar belakang semi-transparan
-            // Menyesuaikan tinggi kotak agar pas dengan 3 baris teks
-            $img->drawRectangle(0, $img->height() - 90, function ($rectangle) use ($img) {
+            // Gunakan $boxHeight dinamis yang baru dihitung
+            $img->drawRectangle(0, $img->height() - $boxHeight, function ($rectangle) use ($img, $boxHeight) {
                 $rectangle->width($img->width());
-                $rectangle->height(90); // Tinggi 90px (disesuaikan untuk 3 baris)
+                $rectangle->height($boxHeight); // Gunakan $boxHeight dinamis
                 $rectangle->background('rgba(0, 0, 0, 0.6)');
             });
             // --- AKHIR PERBAIKAN SINTAKS ---
 
             // Tentukan posisi teks (pojok kiri bawah, dengan padding)
-            $img->text($watermarkText, 15, $img->height() - 15, function($font) use ($fontPath) {
+            // Gunakan $padding dan $fontSize dinamis
+            $img->text($watermarkText, $padding, $img->height() - $padding, function($font) use ($fontPath, $fontSize) {
                 $font->file($fontPath); // PENTING: Aktifkan baris ini
-                $font->size(20); // Ukuran font disesuaikan
+                $font->size($fontSize); // Gunakan $fontSize dinamis
                 $font->color('#ffffff'); // Warna putih
                 $font->align('left');
                 $font->valign('bottom');
