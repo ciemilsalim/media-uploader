@@ -1,38 +1,34 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MediaController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
 |
-| Di sinilah Anda dapat mendaftarkan rute web untuk aplikasi Anda.
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "web" middleware group. Make something great!
 |
 */
 
-// Rute untuk menampilkan halaman utama (Frontend)
-// URL: http://media-uploader.test/
-Route::get('/', [MediaController::class, 'index']);
+// Rute utama untuk menampilkan halaman upload dan galeri
+Route::get('/', [MediaController::class, 'index'])->name('home');
 
-// --- Rute API untuk JavaScript ---
+// Rute API untuk mengambil semua media (digunakan oleh JavaScript)
+Route::get('/media', [MediaController::class, 'getAllMedia']);
 
-// 1. (API) Mengambil semua data media
-// URL: http://media-uploader.test/media
-Route::get('/media', [MediaController::class, 'getAllMedia'])->name('media.get');
+// Rute API untuk menyimpan file yang di-upload
+Route::post('/media/upload', [MediaController::class, 'store']);
 
-// 2. (API) Menyimpan file baru
-// URL: http://media-uploader.test/media/upload
-Route::post('/media/upload', [MediaController::class, 'store'])->name('media.store');
+// Rute API untuk menghapus file tertentu
+Route::delete('/media/{media}', [MediaController::class, 'destroy']);
 
-// 3. (API) Menghapus file
-// URL: http://media-uploader.test/media/123
-// {media} adalah model-route-binding, Laravel akan otomatis mencari Media berdasarkan ID.
-Route::delete('/media/{media}', [MediaController::class, 'destroy'])->name('media.destroy');
-
-// --- PENAMBAHAN BARU: Rute Download File ---
-// URL: http://media-uploader.test/media/123/download
+// Rute untuk download file original
 Route::get('/media/{media}/download', [MediaController::class, 'download'])->name('media.download');
-// --- AKHIR PENAMBAHAN ---
 
+// --- PENAMBAHAN BARU: Rute untuk download gambar dengan watermark ---
+Route::get('/media/{media}/download-watermark', [MediaController::class, 'downloadWatermark'])->name('media.download.watermark');
+// --- AKHIR PENAMBAHAN ---

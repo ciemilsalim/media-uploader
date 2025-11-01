@@ -1,10 +1,11 @@
 /*
-File JavaScript V3 (di-upgrade dari V2) untuk Media Uploader
+File JavaScript V7 (Lengkap)
 Perubahan:
-- Logika Multi-Upload: Menangani antrian file (array) bukan satu file.
-- Multi-Preview: Menampilkan thumbnail untuk setiap file dalam antrian.
-- Tombol Hapus per-File: Setiap thumbnail memiliki tombol 'x' untuk menghapusnya dari antrian.
-- Upload Berurutan: Mengunggah file satu per satu menggunakan deskripsi yang sama.
+- Tombol Download sekarang memicu Modal Opsi Download.
+- Fungsi baru showDownloadOptions() ditambahkan.
+- Modal akan menampilkan/menyembunyikan tombol Watermark
+  berdasarkan tipe file (gambar atau video).
+- PERBAIKAN V7: Menghapus .onclick dari tombol download agar href bisa berjalan.
 */
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -26,10 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadForm = document.getElementById('uploadForm');
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    // --- PERUBAHAN BESAR ---
-    // Mengganti 'currentFile' (satu objek) menjadi 'filesToUpload' (sebuah array)
-    let filesToUpload = [];
-    // --- AKHIR PERUBAHAN ---
+    let filesToUpload = []; // Array untuk antrian file {file, taken_at}
 
 
     // --- Fungsi Bantuan ---
@@ -49,13 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (photoInput) photoInput.value = null;
         if (videoInput) videoInput.value = null;
         if (galleryInput) galleryInput.value = null;
-
-        // --- PERUBAHAN ---
-        filesToUpload = []; // Kosongkan array antrian
-        // --- AKHIR PERUBAHAN ---
-
+        filesToUpload = []; 
         fileDescription.value = '';
-        previewContainer.innerHTML = ''; // Kosongkan preview
+        previewContainer.innerHTML = ''; 
         previewContainer.classList.add('hidden');
         
         if (progressBarContainer) {
@@ -103,39 +97,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- PERUBAHAN BESAR ---
     // 2. Menambah File ke Antrian dan Menampilkan Preview
     function addFilesToQueue(newFiles) {
-        // 'newFiles' adalah objek FileList, kita ubah jadi Array
         for (const file of newFiles) {
-            // Beri ID unik untuk keperluan menghapus
             file.uniqueId = Date.now().toString() + Math.random().toString();
-            
-            // Tambahkan file ke array antrian kita
-            filesToUpload.push(file);
-            
-            // Buat elemen preview untuk file ini
-            createPreviewElement(file);
+            const fileData = {
+                file: file,
+                taken_at: new Date().toISOString() 
+            };
+            filesToUpload.push(fileData); 
+            createPreviewElement(fileData.file, file.uniqueId); 
         }
-
-        // Jika ada file dalam antrian, aktifkan tombol upload
         if (filesToUpload.length > 0) {
             uploadBtn.disabled = false;
         }
     }
 
     // 3. Membuat Elemen Preview (Thumbnail)
-    function createPreviewElement(file) {
+    function createPreviewElement(file, uniqueId) {
         previewContainer.classList.remove('hidden');
 
         const fileType = file.type.split('/')[0];
         let previewElement;
 
-        // Buat wrapper untuk thumbnail
         const previewWrapper = document.createElement('div');
         previewWrapper.className = 'relative w-full h-24 rounded-lg overflow-hidden shadow-md border-2 border-slate-200';
-        // Simpan ID unik di elemen DOM untuk referensi
-        previewWrapper.id = `preview-${file.uniqueId}`;
+        previewWrapper.id = `preview-${uniqueId}`; 
 
         if (fileType === 'image') {
             previewElement = document.createElement('img');
@@ -145,102 +132,108 @@ document.addEventListener('DOMContentLoaded', () => {
             previewElement = document.createElement('video');
             previewElement.src = URL.createObjectURL(file);
             previewElement.className = 'w-full h-full object-cover bg-black';
-            previewElement.muted = true; // Video tidak bersuara di preview
+            previewElement.muted = true; 
         } else {
             previewElement = document.createElement('div');
             previewElement.className = 'w-full h-full bg-slate-100 flex items-center justify-center p-2';
             previewElement.innerHTML = `<span class="text-xs text-slate-500 text-center truncate">${file.name}</span>`;
         }
 
-        // Buat tombol Hapus (X)
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'absolute top-1 right-1 w-6 h-6 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-colors';
         removeBtn.innerHTML = '&times;';
         
-        // Tambahkan event listener ke tombol Hapus
         removeBtn.onclick = (e) => {
-            e.stopPropagation(); // Hentikan event agar tidak memicu hal lain
-            removeFileFromQueue(file.uniqueId);
+            e.stopPropagation(); 
+            removeFileFromQueue(uniqueId); 
         };
 
-        // Masukkan elemen-elemen ke wrapper
         previewWrapper.appendChild(previewElement);
         previewWrapper.appendChild(removeBtn);
-
-        // Masukkan wrapper ke kontainer preview
         previewContainer.appendChild(previewWrapper);
     }
 
     // 4. Menghapus File dari Antrian
     function removeFileFromQueue(uniqueId) {
-        // Hapus file dari array
-        filesToUpload = filesToUpload.filter(f => f.uniqueId !== uniqueId);
-
-        // Hapus elemen preview dari DOM
+        filesToUpload = filesToUpload.filter(f => f.file.uniqueId !== uniqueId);
         const previewElement = document.getElementById(`preview-${uniqueId}`);
         if (previewElement) {
             previewElement.remove();
         }
-
-        // Jika tidak ada file lagi, nonaktifkan tombol upload
         if (filesToUpload.length === 0) {
             uploadBtn.disabled = true;
             previewContainer.classList.add('hidden');
         }
     }
 
-    // Panggil addFilesToQueue saat SALAH SATU input berubah
+    // Listener untuk input file
     if (photoInput) {
         photoInput.addEventListener('change', (e) => {
             addFilesToQueue(e.target.files);
-            // --- PERBAIKAN BUG DUPLIKAT ---
-            // Bersihkan input segera agar event 'focus' tidak memicunya lagi
-            e.target.value = null;
-            // --- AKHIR PERBAIKAN ---
+            e.target.value = null; // Bug fix duplikat
         });
     }
     if (videoInput) {
-        // Input video (capture) biasanya hanya 1 file, tapi kita tetap perlakukan sebagai antrian
         videoInput.addEventListener('change', (e) => {
             addFilesToQueue(e.target.files);
-            // --- PERBAIKAN BUG DUPLIKAT ---
-            e.target.value = null;
-            // --- AKHIR PERBAIKAN ---
+            e.target.value = null; // Bug fix duplikat
         });
     }
     if (galleryInput) {
         galleryInput.addEventListener('change', (e) => {
             addFilesToQueue(e.target.files);
-            // --- PERBAIKAN BUG DUPLIKAT ---
-            e.target.value = null;
-            // --- AKHIR PERBAIKAN ---
+            e.target.value = null; // Bug fix duplikat
         });
     }
-    // --- AKHIR PERUBAHAN BESAR ---
 
-
-    // --- PERBAIKAN PREVIEW KAMERA HP ---
-    // (Disederhanakan karena addFilesToQueue sudah menangani semuanya)
+    // Bug fix duplikat saat 'focus' (kembali dari kamera)
     window.addEventListener('focus', () => {
         setTimeout(() => {
-            // Cukup periksa apakah ada file di input yang belum masuk antrian
-            // (Logika ini mungkin perlu disempurnakan, tapi kita coba dulu)
             if (photoInput && photoInput.files.length > 0) {
                 addFilesToQueue(photoInput.files);
-                photoInput.value = null; // Kosongkan setelah diambil
+                photoInput.value = null; 
             }
             if (videoInput && videoInput.files.length > 0) {
                 addFilesToQueue(videoInput.files);
                 videoInput.value = null;
             }
-        }, 200); // Beri jeda lebih lama
+        }, 200);
     });
 
-// ... (Sisa file tidak berubah) ...
+    // 5. Fungsi Geolocation (GPS)
+    function getGeolocation() {
+        return new Promise((resolve) => {
+            if (!('geolocation' in navigator)) {
+                console.warn('Geolocation tidak didukung oleh browser ini.');
+                showStatus('Geolocation tidak didukung browser.', true);
+                resolve(null); 
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve(position.coords); 
+                },
+                (error) => {
+                    console.warn(`Gagal mendapatkan lokasi (Error ${error.code}): ${error.message}`);
+                    let errorMsg = 'Gagal mengambil lokasi.';
+                    if (error.code === 1) { 
+                        errorMsg = 'Anda memblokir izin lokasi. Mengunggah tanpa data GPS.';
+                    }
+                    showStatus(errorMsg, true);
+                    resolve(null); 
+                },
+                {
+                    enableHighAccuracy: true, 
+                    timeout: 10000,           
+                    maximumAge: 0             
+                }
+            );
+        });
+    }
 
-    // --- PERUBAHAN BESAR ---
-    // 5. Mengunggah SEMUA File (Satu per Satu)
+
+    // 6. Mengunggah SEMUA File (Satu per Satu)
     uploadForm.addEventListener('submit', async (e) => {
         e.preventDefault(); 
 
@@ -249,27 +242,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // --- PERBAIKAN: Penomoran Deskripsi ---
-        // Ambil deskripsi DASAR, dan trim spasi
         const baseDescription = fileDescription.value.trim();
-        // --- AKHIR PERBAIKAN ---
         const totalFiles = filesToUpload.length;
 
         // Tampilkan UI "Mengunggah..."
         uploadBtn.disabled = true;
-        uploadBtn.innerHTML = `
-            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Mengunggah...`;
-        
+        uploadBtn.innerHTML = `... Mengunggah ...`; // Disingkat untuk kejelasan
         if (takePhotoBtn) takePhotoBtn.disabled = true;
         if (recordVideoBtn) recordVideoBtn.disabled = true;
         if (selectGalleryBtn) selectGalleryBtn.disabled = true;
-        
         if (progressBarContainer) {
             progressBarContainer.classList.remove('hidden');
+        }
+
+        // Ambil GPS
+        showStatus('Meminta izin dan mengambil lokasi GPS...', false);
+        const location = await getGeolocation(); 
+        if (location) {
+            showStatus('Lokasi GPS didapat! Memulai upload...', false);
+        } else {
+            showStatus('Gagal/ditolak. Memulai upload tanpa lokasi...', true);
         }
 
         let successCount = 0;
@@ -277,28 +269,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Loop dan upload file satu per satu
         for (let i = 0; i < totalFiles; i++) {
-            const file = filesToUpload[i];
+            const fileObject = filesToUpload[i];
 
-            // Update progress bar
             if (progressText) {
-                progressText.textContent = `Mengunggah ${i + 1} / ${totalFiles} (${file.name})...`;
+                progressText.textContent = `Mengunggah ${i + 1} / ${totalFiles} (${fileObject.file.name})...`;
             }
 
-            // --- PERBAIKAN: Penomoran Deskripsi Otomatis ---
+            // Logika penomoran deskripsi
             let finalDescription = baseDescription;
-            // Hanya tambahkan nomor jika deskripsi diisi DAN total file lebih dari 1
             if (baseDescription !== '' && totalFiles > 1) {
-                finalDescription = `${baseDescription}-${i + 1}`; // Mis: "Kegiatan-1"
+                finalDescription = `${baseDescription}-${i + 1}`; 
             }
-            // --- AKHIR PERBAIKAN ---
 
             const formData = new FormData();
-            formData.append('file', file);
-            formData.append('description', finalDescription); // Gunakan deskripsi yang sudah dinomori
+            formData.append('file', fileObject.file); 
+            formData.append('description', finalDescription); 
+            formData.append('taken_at', fileObject.taken_at); 
+            if (location) {
+                formData.append('latitude', location.latitude);
+                formData.append('longitude', location.longitude);
+            }
 
             try {
-                // Gunakan fungsi uploadFile (didefinisikan di bawah) yang mengembalikan Promise
-                // Ini akan meng-handle progress bar per file
                 await uploadFile(formData, (progress) => {
                     if (progressFill) {
                         progressFill.style.width = `${progress * 100}%`;
@@ -307,8 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 successCount++;
             } catch (error) {
                 errorCount++;
-                console.error(`Gagal mengunggah ${file.name}:`, error);
-                // Jangan hentikan loop, lanjut ke file berikutnya
+                console.error(`Gagal mengunggah ${fileObject.file.name}:`, error);
             }
         }
 
@@ -320,10 +311,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         resetUploadForm();
-        loadFiles(); // Muat ulang galeri setelah semua selesai
+        loadFiles(); // Muat ulang galeri
     });
 
-    // 6. Fungsi Helper untuk Upload (menggunakan Promise)
+    // 7. Fungsi Helper untuk Upload (menggunakan Promise)
     function uploadFile(formData, onProgress) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -331,65 +322,52 @@ document.addEventListener('DOMContentLoaded', () => {
             xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
             xhr.setRequestHeader('Accept', 'application/json');
 
-            // Listener progres upload per file
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
-                    onProgress(event.loaded / event.total); // Kirim progres (0.0 sampai 1.0)
+                    onProgress(event.loaded / event.total); 
                 }
             };
-
-            // Listener saat upload selesai
             xhr.onload = () => {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    resolve(xhr.response); // Sukses
+                    resolve(xhr.response); 
                 } else {
-                    reject(xhr.response); // Gagal (mis: error validasi)
+                    reject(xhr.response); 
                 }
             };
-
-            // Listener saat error koneksi
             xhr.onerror = () => {
                 reject('Network error');
             };
-
             xhr.send(formData);
         });
     }
-    // --- AKHIR PERUBAHAN BESAR ---
 
 
-    // 4. Memuat dan Menampilkan File dari Server Laravel
+    // 8. Memuat dan Menampilkan File dari Server Laravel
     async function loadFiles() {
-// ... (Sisa file sama seperti V2) ...
         if (!galleryContainer) return;
-
         galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Memuat file...</p>';
-        
         try {
             const response = await fetch('/media');
             if (!response.ok) {
                 throw new Error('Gagal memuat data galeri.');
             }
             const files = await response.json();
-
             galleryContainer.innerHTML = ''; 
             if (files.length === 0) {
                 galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Belum ada file yang diunggah.</p>';
                 return;
             }
-
             files.forEach(fileData => {
                 const fileCard = createFileCard(fileData.id, fileData);
                 galleryContainer.appendChild(fileCard);
             });
-
         } catch (error) {
             console.error("Error loading files:", error);
             galleryContainer.innerHTML = '<p class="text-red-500 col-span-full">Gagal memuat data galeri. Coba refresh halaman.</p>';
         }
     }
 
-    // 5. Membuat Tampilan Kartu File (Desain Elegan)
+    // 9. Membuat Tampilan Kartu File (Desain Elegan)
     function createFileCard(docId, data) {
         const card = document.createElement('div');
         card.className = 'bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1';
@@ -402,7 +380,6 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaElement.src = data.download_url;
             mediaElement.alt = data.description || 'Uploaded image';
             mediaElement.className = 'w-full h-48 object-cover';
-            
             mediaElement.onerror = () => {
                 console.error(`GAGAL MEMUAT GAMBAR di URL: ${mediaElement.src}`);
                 mediaElement.src = `https://placehold.co/600x400/eee/ccc?text=Image+Error`;
@@ -430,25 +407,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const timestamp = document.createElement('p');
         timestamp.className = 'text-xs text-slate-500 mb-4';
         const fileTypeText = data.file_type.split('/')[1] ? data.file_type.split('/')[1].toUpperCase() : 'FILE';
-        const dateText = new Date(data.created_at).toLocaleDateString('id-ID');
+        const dateToFormat = data.taken_at ? data.taken_at : data.created_at;
+        const dateText = new Date(dateToFormat).toLocaleString('id-ID', {
+            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
         timestamp.textContent = `${fileTypeText} · ${dateText}`;
         infoDiv.appendChild(timestamp);
 
-        // --- PERBAIKAN TATA LETAK TOMBOL ---
-        // Grup Tombol (Download & Hapus)
-        const buttonGroup = document.createElement('div');
-        // Menambahkan 'flex space-x-2' agar tombol sejajar dan ada jarak
-        buttonGroup.className = 'flex space-x-2';
-        // --- AKHIR PERBAIKAN ---
+        if (data.latitude && data.longitude) {
+            const location = document.createElement('p');
+            location.className = 'text-xs text-blue-600 mb-4 flex items-center gap-1';
+            location.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                Lokasi: ${parseFloat(data.latitude).toFixed(4)}, ${parseFloat(data.longitude).toFixed(4)}`;
+            const mapLink = document.createElement('a');
+            mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
+            mapLink.target = '_blank';
+            mapLink.rel = 'noopener noreferrer';
+            mapLink.className = 'ml-1 text-blue-700 hover:underline';
+            mapLink.innerHTML = '(Lihat Peta)';
+            location.appendChild(mapLink);
+            infoDiv.appendChild(location);
+        }
 
-        // Tombol Download
-        const downloadBtn = document.createElement('a'); // 'a' agar bisa di-download
-        
-        // --- PERBAIKAN BUG 404 (URL SALAH) ---
-        // URL yang benar adalah /media/{id}/download
-        // Bukan /media/download/{id}
-        downloadBtn.href = `/media/${docId}/download`; // Link ke rute download
-        // --- AKHIR PERBAIKAN ---
+        const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'flex space-x-2';
+
+        // --- PERUBAHAN: Tombol Download memicu MODAL ---
+        // 1. Ubah dari <a> menjadi <button>
+        const downloadBtn = document.createElement('button');
+        downloadBtn.type = 'button'; // Pastikan tipenya button
+        // 2. Tambahkan event onclick untuk memanggil modal
+        downloadBtn.onclick = () => showDownloadOptions(docId, data.file_type);
+        // 3. Hapus href
+        // --- AKHIR PERUBAHAN ---
 
         downloadBtn.className = 'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium';
         downloadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Download`;
@@ -458,7 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`;
         deleteBtn.className = 'flex items-center justify-center px-3 py-2 text-sm rounded-lg transition-colors bg-red-100 text-red-700 hover:bg-red-200';
         deleteBtn.setAttribute('aria-label', 'Hapus file');
-        
         deleteBtn.onclick = () => showDeleteConfirmation(docId);
         
         buttonGroup.appendChild(deleteBtn);
@@ -467,11 +457,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return card;
     }
 
-    // 6. Menghapus File
+    // 10. Menghapus File
     async function deleteFile(docId) {
         console.log(`Menghapus file ID: ${docId}`);
         document.getElementById('deleteModal').classList.add('hidden');
-
         try {
             const response = await fetch(`/media/${docId}`, {
                 method: 'DELETE',
@@ -480,35 +469,67 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Accept': 'application/json'
                 }
             });
-            
             if (!response.ok) {
                 throw new Error('Gagal menghapus file.');
             }
-            
             showStatus("File berhasil dihapus.", false);
-            loadFiles(); // Muat ulang galeri
-            
+            loadFiles(); 
         } catch (error) {
             console.error("Error deleting file:", error);
             showStatus(error.message, true);
         }
     }
 
-    // --- Modal Konfirmasi Hapus ---
+    // 11. Modal Konfirmasi Hapus
     function showDeleteConfirmation(docId) {
         const modal = document.getElementById('deleteModal');
         const confirmBtn = document.getElementById('confirmDeleteBtn');
         const cancelBtn = document.getElementById('cancelDeleteBtn');
-        
         modal.classList.remove('hidden');
-
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-        
         newConfirmBtn.onclick = () => deleteFile(docId);
-        
         cancelBtn.onclick = () => modal.classList.add('hidden');
     }
+
+    // --- PENAMBAHAN BARU: MODAL OPSI DOWNLOAD ---
+    function showDownloadOptions(docId, fileType) {
+        const modal = document.getElementById('downloadModal');
+        const btnWatermark = document.getElementById('btnDownloadWatermark');
+        const btnOriginal = document.getElementById('btnDownloadOriginal');
+        const btnCancel = document.getElementById('cancelDownloadBtn');
+        
+        // Set URL untuk tombol-tombol
+        btnOriginal.href = `/media/${docId}/download`;
+        btnWatermark.href = `/media/${docId}/download-watermark`;
+
+        // Logika untuk menampilkan/menyembunyikan tombol
+        if (fileType.startsWith('image/')) {
+            // Jika ini gambar, tampilkan tombol watermark
+            btnWatermark.classList.remove('hidden');
+        } else {
+            // Jika bukan gambar (mis: video), sembunyikan tombol watermark
+            btnWatermark.classList.add('hidden');
+        }
+
+        // Tampilkan modal
+        modal.classList.remove('hidden');
+
+        // Fungsi untuk menutup modal
+        const closeModal = () => modal.classList.add('hidden');
+
+        // Tambahkan listener ke tombol Batal
+        // Kita gunakan .onclick agar listener tidak menumpuk
+        btnCancel.onclick = closeModal;
+        
+        // --- PERBAIKAN V7 ---
+        // JANGAN tambahkan .onclick ke tombol download (btnOriginal & btnWatermark)
+        // Biarkan aksi default <a> (mengikuti href) berjalan.
+        // Modal akan tetap terbuka, dan user bisa menutupnya dengan "Batal".
+        // --- AKHIR PERBAIKAN ---
+    }
+    // --- AKHIR PENAMBAHAN ---
+
 
     // Muat galeri saat halaman pertama kali dibuka
     loadFiles();

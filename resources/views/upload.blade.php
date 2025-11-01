@@ -11,12 +11,11 @@
     <!-- WAJIB: CSRF Token untuk keamanan Laravel -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <!-- 
-    --- PERUBAHAN ---
-    Memuat file JavaScript (upload-v2.js) yang telah diperbarui 
-    untuk menangani 3 tombol baru.
-    -->
+    <!-- Memuat JavaScript APLIKASI -->
+    <!-- PERBAIKAN: Menambahkan 'cache-busting' (versi) ke file JS -->
+    <!-- Ini memaksa browser (terutama HP) untuk memuat ulang file .js jika ada perubahan -->
     <script src="{{ asset('js/upload-v2.js') }}?v={{ @filemtime(public_path('js/upload-v2.js')) ?: time() }}" defer></script>
+
 
     <!-- Font (Desain Elegan) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,50 +47,49 @@
             <form id="uploadForm">
                 <h2 class="text-xl font-semibold mb-5 text-slate-800">Upload File Baru</h2>
                 
-                <!-- 
-                --- PERUBAHAN ---
-                Kita membuat 3 input tersembunyi yang terpisah.
-                'capture' memaksa HP membuka kamera.
-                'multiple' mengizinkan pemilihan banyak file.
-                -->
+                <!-- === PERUBAHAN: 3 Input Terpisah === -->
+                
+                <!-- Input untuk Ambil Foto (langsung kamera) -->
+                <!-- 'capture' akan memaksa HP membuka kamera -->
                 <input type="file" id="photoInput" accept="image/*" capture="camera" class="hidden" multiple>
+
+                <!-- Input untuk Rekam Video (langsung kamera) -->
                 <input type="file" id="videoInput" accept="video/*" capture="camcorder" class="hidden">
+
+                <!-- Input untuk Galeri (bisa pilih banyak) -->
                 <input type="file" id="galleryInput" accept="image/*,video/*" class="hidden" multiple>
 
-                <!-- 
-                --- PERUBAHAN ---
-                Mengganti 1 tombol menjadi 3 tombol terpisah untuk UX yang lebih baik di HP.
-                -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <!-- Grup Tombol Aksi -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
                     <!-- Tombol Ambil Foto -->
-                    <button type="button" id="takePhotoBtn" class="w-full flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button type="button" id="takePhotoBtn" class="w-full flex flex-col sm:flex-row items-center justify-center gap-2 bg-white text-slate-700 px-3 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        Ambil Foto
+                        <span class="text-sm sm:text-base">Ambil Foto</span>
                     </button>
+                    
                     <!-- Tombol Rekam Video -->
-                    <button type="button" id="recordVideoBtn" class="w-full flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button type="button" id="recordVideoBtn" class="w-full flex flex-col sm:flex-row items-center justify-center gap-2 bg-white text-slate-700 px-3 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
-                        Rekam Video
+                        <span class="text-sm sm:text-base">Rekam Video</span>
                     </button>
+
                     <!-- Tombol Pilih Galeri -->
-                    <button type="button" id="selectGalleryBtn" class="w-full flex items-center justify-center gap-2 bg-white text-slate-700 px-4 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button type="button" id="selectGalleryBtn" class="w-full flex flex-col sm:flex-row items-center justify-center gap-2 bg-white text-slate-700 px-3 py-3 rounded-lg font-medium border-2 border-dashed border-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                         </svg>
-                        Pilih Galeri
+                        <span class="text-sm sm:text-base">Pilih Galeri</span>
                     </button>
                 </div>
+                <!-- === AKHIR PERUBAHAN === -->
 
-                <!-- Preview -->
-                <!-- 
-                --- PERUBAHAN ---
-                Mengubah preview menjadi grid agar bisa menampilkan banyak thumbnail
-                -->
+
+                <!-- Preview (Sekarang Grid) -->
                 <div id="previewContainer" class="hidden my-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                     <!-- Preview gambar/video akan muncul di sini -->
                 </div>
@@ -102,10 +100,9 @@
                     <input type="text" id="fileDescription" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mis: Foto bukti di lokasi A">
                 </div>
 
-                <!-- Progress Bar Container (Desain Elegan) -->
+                <!-- Progress Bar Container -->
                 <div id="progressBarContainer" class="hidden my-4 w-full">
                     <div class="flex justify-between mb-1">
-                        <span class="text-sm font-medium text-blue-700">Mengunggah...</span>
                         <span id="progressText" class="text-sm font-medium text-blue-700">0%</span>
                     </div>
                     <div class="w-full bg-slate-200 rounded-full h-2.5">
@@ -113,7 +110,7 @@
                     </div>
                 </div>
                 
-                <!-- Tombol Upload (Desain Elegan) -->
+                <!-- Tombol Upload -->
                 <button type="submit" id="uploadBtn" class="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed" disabled>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z" />
@@ -146,6 +143,34 @@
             </div>
         </div>
     </div>
+
+    <!-- === PENAMBAHAN BARU: MODAL OPSI DOWNLOAD === -->
+    <div id="downloadModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full m-4">
+            <h3 class="text-lg font-semibold text-slate-900 mb-2">Pilih Opsi Download</h3>
+            <p class="text-sm text-slate-600 mb-6">Pilih versi file yang ingin Anda unduh.</p>
+            
+            <!-- Tombol-tombol ini akan diisi href oleh JS -->
+            <div class="flex flex-col space-y-3">
+                <!-- Tombol Watermark (hanya tampil untuk gambar) -->
+                <a id="btnDownloadWatermark" href="#" download class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-700 font-medium">
+                    Download (dengan Watermark)
+                </a>
+                <!-- Tombol Original (selalu tampil) -->
+                <a id="btnDownloadOriginal" href="#" download class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium">
+                    Download (Original)
+                </a>
+            </div>
+
+            <!-- Tombol Batal -->
+            <div class="mt-6 text-center">
+                <button type="button" id="cancelDownloadBtn" class="px-4 py-2 text-sm text-slate-600 hover:underline font-medium">Batal</button>
+            </div>
+        </div>
+    </div>
+    <!-- === AKHIR PENAMBAHAN === -->
+
+
 </body>
 </html>
 

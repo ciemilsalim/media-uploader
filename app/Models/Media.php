@@ -10,21 +10,38 @@ class Media extends Model
     use HasFactory;
 
     /**
-     * Atribut yang boleh diisi (mass assignable).
-     * Pastikan 'file_path' dan 'uploader_id' ada di sini.
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
      */
     protected $fillable = [
         'file_name',
-        'file_path', // Nama ini harus cocok dengan migrasi dan controller
+        'file_path',
         'download_url',
         'file_type',
         'description',
-        
-        // --- PERBAIKAN ---
-        // Mengganti 'uploaderid' menjadi 'uploader_id' agar cocok
-        // dengan nama kolom di database.
         'uploader_id',
-        // --- AKHIR PERBAIKAN ---
+        'taken_at',
+        'latitude',
+        'longitude',
     ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * (INI ADALAH PERBAIKAN PENTING KEDUA)
+     * Ini akan secara otomatis mengubah 'taken_at' dari string di database
+     * menjadi objek Carbon di PHP, sehingga ->locale('id') berfungsi.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'taken_at' => 'datetime',
+        // --- PENAMBAHAN YANG DISARANKAN ---
+        'latitude' => 'float',
+        'longitude' => 'float',
+        // --- AKHIR PENAMBAHAN ---
+    ];
+    // --- AKHIR PENAMBAHAN ---
 }
 
