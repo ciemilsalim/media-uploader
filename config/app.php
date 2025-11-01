@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // --- PENAMBAHAN BARU UNTUK API KEY ---
+    'locationiq_api_key' => env('LOCATIONIQ_API_KEY'),
+    // --- AKHIR PENAMBAHAN ---
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

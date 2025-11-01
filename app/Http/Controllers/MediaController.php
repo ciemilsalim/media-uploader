@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Http\Controllers; // --- INI PERBAIKANNYA ---
-use Illuminate\Routing\Controller; // --- PERBAIKAN KRUSIAL: Baris ini ditambahkan ---
+namespace App\Http\Controllers;
+use Illuminate\Routing\Controller;
 use App\Models\Media;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-// --- PERBAIKAN V3 ---
 use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver; // 1. TAMBAHKAN DRIVER
+use Intervention\Image\Drivers\Gd\Driver;
 use Carbon\Carbon;
-use Intervention\Image\Interfaces\ImageInterface; // 2. (OPSIONAL TAPI BAGUS) Tambahkan interface untuk type-hinting
+use Intervention\Image\Interfaces\ImageInterface;
+use Illuminate\Support\Facades\Http; // --- BARU: Tambahkan HTTP Client ---
 
 class MediaController extends Controller
 {
@@ -61,7 +61,9 @@ class MediaController extends Controller
 
         // Buat URL relatif
         // Symlink 'public/storage' Anda akan menanganinya.
+        // --- PERBAIKAN: Mengganti operator '/' dengan '.' ---
         $url = '/storage/' . $path; // $path sudah berisi 'uploads/namafile.jpg'
+        // --- AKHIR PERBAIKAN ---
 
         // Simpan metadata ke database
         $media = Media::create([
@@ -115,16 +117,12 @@ class MediaController extends Controller
         }
 
         // --- PERBAIKAN PATH ---
-        // Ambil path lengkap file dari storage
         $originalFilePath = Storage::disk('public')->path(Str::after($media->file_path, 'public/'));
         // --- AKHIR PERBAIKAN ---
 
         try {
             // --- PERBAIKAN V3: SINTAKS CONSTRUCTOR & READ ---
-            // 2. Gunakan driver baru saat membuat manager
             $manager = new ImageManager(new Driver());
-            
-            // 3. Gunakan 'read()' (V3) bukan 'make()' (V2)
             $img = $manager->read($originalFilePath);
             // --- AKHIR PERBAIKAN ---
 
@@ -134,23 +132,80 @@ class MediaController extends Controller
             // Siapkan informasi teks
             $description = $media->description ?? 'Tanpa Deskripsi';
             
-            // Ini sekarang aman karena $casts di Media.php
             $takenAt = $media->taken_at 
                             ? $media->taken_at->locale('id')->isoFormat('D MMM YYYY, HH:mm') 
                             : 'Waktu tidak tersedia';
 
-            $location = "Lokasi tidak tersedia";
+            // --- BARU: REVERSE GEOCODING ---
+            $locationLines = []; // Array untuk semua baris lokasi
             if ($media->latitude && $media->longitude) {
-                // Format koordinat
-                $lat = number_format($media->latitude, 5);
-                $lon = number_format($media->longitude, 5);
-                $location = "{$lat}, {$lon}";
-            }
+                try {
+                    $apiKey = config('app.locationiq_api_key'); // Ambil dari config/app.php
+                    if (empty($apiKey)) {
+                        throw new \Exception('LOCATIONIQ_API_KEY tidak diatur di .env atau config/app.php');
+                    }
 
-            // Gabungkan teks
+                    $url = "https://us1.locationiq.com/v1/reverse.php";
+                    // Panggil API
+                    $response = Http::timeout(5)->get($url, [ // Timeout 5 detik
+                        'key' => $apiKey,
+                        'lat' => $media->latitude,
+                        'lon' => $media->longitude,
+                        'format' => 'json',
+                        'accept-language' => 'id', // Minta data dalam Bahasa Indonesia
+                        'normalizecity' => 1,
+                    ]);
+
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        
+                        // Selalu tampilkan GPS
+                        $locationLines[] = "GPS: {$media->latitude}, {$media->longitude}";
+
+                        // --- PERUBAHAN: Ambil Alamat Lengkap (Display Name) ---
+                        // Ambil 'display_name' yang sudah diformat oleh API
+                        $fullAddress = $data['display_name'] ?? null;
+
+                        if ($fullAddress) {
+                            // --- PERUBAHAN: Tampilkan alamat lengkap ---
+                            // Kita tidak lagi menghapus kode pos atau "Indonesia"
+                            $locationLines[] = $fullAddress;
+                            // --- AKHIR PERUBAHAN ---
+
+                        } else {
+                            // Fallback jika 'display_name' tidak ada (seharusnya tidak terjadi)
+                            $locationLines[] = "(Alamat tidak ditemukan)";
+                        }
+                        // --- AKHIR PERUBAHAN ---
+                        
+                    } else {
+                        // Gagal panggil API, fallback ke GPS saja
+                        $locationLines[] = "GPS: {$media->latitude}, {$media->longitude}";
+                        $locationLines[] = "(Gagal mengambil data alamat)";
+                    }
+                } catch (\Exception $geoEx) {
+                    // Gagal total (misal key tidak ada / timeout), fallback ke GPS saja
+                    \Log::error('LocationIQ API Error: '. $geoEx->getMessage());
+                    $locationLines[] = "GPS: {$media->latitude}, {$media->longitude}";
+                    $locationLines[] = "(Gagal mengambil data alamat)";
+                }
+            } else {
+                $locationLines[] = "Lokasi tidak tersedia";
+            }
+            // --- AKHIR REVERSE GEOCODING ---
+
+            // --- PERUBAHAN: Gabungkan teks + credit ---
             $watermarkText = "Deskripsi: {$description}\n";
             $watermarkText .= "Waktu: {$takenAt}\n";
-            $watermarkText .= "GPS: {$location}";
+            $watermarkText .= implode("\n", $locationLines); // Gabungkan semua baris lokasi
+            $watermarkText .= "\n"; // Tambah 1 spasi (baris kosong)
+            $watermarkText .= "createdBy Uploader-Zahradev"; // Tambah baris credit
+            // --- AKHIR PERUBAHAN ---
+
+            // --- PERBAIKAN: BLOK DUPLIKAT DIHAPUS ---
+            // Blok kode lama (dari $takenAt sampai $watermarkText .= "GPS: {$location}";)
+            // telah dihapus dari sini untuk mencegah penimpaan $watermarkText.
+            // --- AKHIR PERBAIKAN ---
 
             // --- PERBAIKAN UTAMA: MENAMBAHKAN FONT ---
             // Tentukan Path Font Anda
@@ -163,7 +218,6 @@ class MediaController extends Controller
             }
             
             // --- PERBAIKAN: UKURAN WATERMARK DINAMIS ---
-            // Hitung ukuran font & padding berdasarkan lebar gambar
             $imageWidth = $img->width();
             
             // 1. Ukuran Font Dinamis: (mis: 1/45 dari lebar, dengan min 16px)
@@ -172,15 +226,15 @@ class MediaController extends Controller
             // 2. Padding Dinamis: (mis: 75% dari ukuran font, dengan min 10px)
             $padding = max(10, (int) round($fontSize * 0.75));
             
-            // 3. Tinggi Box Dinamis: (cukup untuk 3 baris teks + padding atas/bawah)
-            // Perkiraan tinggi per baris = 1.25 * $fontSize. Total 3.75 * $fontSize.
-            $textBlockHeight = (int) round($fontSize * 3.75);
+            // --- PERUBAHAN: HITUNG TINGGI BOX BARU ---
+            // 2 baris (Deskripsi, Waktu) + jumlah baris lokasi + 1 baris kosong + 1 baris credit
+            $lineCount = 2 + count($locationLines) + 2; 
+            // Perkiraan tinggi per baris = 1.25 * $fontSize.
+            $textBlockHeight = (int) round($fontSize * 1.25 * $lineCount);
             $boxHeight = $textBlockHeight + ($padding * 2);
-            // --- AKHIR PERBAIKAN ---
+            // --- AKHIR PERUBAHAN ---
 
             // --- PERBAIKAN SINTAKS V3 (drawRectangle) ---
-            // (Upgrade Desain) Tambahkan kotak latar belakang semi-transparan
-            // Gunakan $boxHeight dinamis yang baru dihitung
             $img->drawRectangle(0, $img->height() - $boxHeight, function ($rectangle) use ($img, $boxHeight) {
                 $rectangle->width($img->width());
                 $rectangle->height($boxHeight); // Gunakan $boxHeight dinamis
@@ -203,7 +257,6 @@ class MediaController extends Controller
 
 
             // --- PERBAIKAN: Undefined property $img->extension ---
-            // Ambil ekstensi dari nama file asli, bukan dari objek $img
             $extension = pathinfo($media->file_name, PATHINFO_EXTENSION);
             if (empty($extension) || !in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif'])) {
                 $extension = 'jpg'; // Default ke jpg jika ekstensi tidak valid/kosong
@@ -236,8 +289,6 @@ class MediaController extends Controller
             ]);
             
             // --- PERBAIKAN: KEMBALIKAN KE MODE NORMAL ---
-            // Kembalikan ke redirect. Jika Anda masih mendapat .htm,
-            // kita tahu error masih terjadi.
             return redirect()->back()->withErrors('Gagal membuat watermark pada gambar. Error: ' . $e->getMessage());
             // --- AKHIR PERBAIKAN ---
         }
