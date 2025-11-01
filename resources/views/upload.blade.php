@@ -12,8 +12,6 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <!-- Memuat JavaScript APLIKASI -->
-    <!-- PERBAIKAN: Menambahkan 'cache-busting' (versi) ke file JS -->
-    <!-- Ini memaksa browser (terutama HP) untuk memuat ulang file .js jika ada perubahan -->
     <script src="{{ asset('js/upload-v2.js') }}?v={{ @filemtime(public_path('js/upload-v2.js')) ?: time() }}" defer></script>
 
 
@@ -25,6 +23,11 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+        }
+        /* Memperbaiki tampilan input tanggal di beberapa browser */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="15" viewBox="0 0 24 24"><path fill="%236B7280" d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg>');
+            cursor: pointer;
         }
     </style>
 </head>
@@ -47,16 +50,9 @@
             <form id="uploadForm">
                 <h2 class="text-xl font-semibold mb-5 text-slate-800">Upload File Baru</h2>
                 
-                <!-- === PERUBAHAN: 3 Input Terpisah === -->
-                
-                <!-- Input untuk Ambil Foto (langsung kamera) -->
-                <!-- 'capture' akan memaksa HP membuka kamera -->
+                <!-- Input Terpisah -->
                 <input type="file" id="photoInput" accept="image/*" capture="camera" class="hidden" multiple>
-
-                <!-- Input untuk Rekam Video (langsung kamera) -->
                 <input type="file" id="videoInput" accept="video/*" capture="camcorder" class="hidden">
-
-                <!-- Input untuk Galeri (bisa pilih banyak) -->
                 <input type="file" id="galleryInput" accept="image/*,video/*" class="hidden" multiple>
 
                 <!-- Grup Tombol Aksi -->
@@ -86,7 +82,6 @@
                         <span class="text-sm sm:text-base">Pilih Galeri</span>
                     </button>
                 </div>
-                <!-- === AKHIR PERUBAHAN === -->
 
 
                 <!-- Preview (Sekarang Grid) -->
@@ -123,7 +118,30 @@
 
         <!-- Galeri File -->
         <div>
-            <h2 class="text-2xl font-semibold mb-5 text-slate-800">Galeri Anda</h2>
+            <div class="mb-5">
+                <h2 class="text-2xl font-semibold text-slate-800 mb-4">Galeri Anda</h2>
+                
+                <!-- === PERUBAHAN: FORM PENCARIAN DENGAN TANGGAL === -->
+                <form id="searchForm" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <!-- Pencarian Teks -->
+                    <div class="md:col-span-1">
+                        <label for="searchInput" class="text-sm font-medium text-slate-700 block mb-1">Cari Teks</label>
+                        <input type="search" id="searchInput" placeholder="Deskripsi/Nama File..." class="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <!-- Tanggal Mulai -->
+                    <div>
+                        <label for="startDate" class="text-sm font-medium text-slate-700 block mb-1">Dari Tanggal</label>
+                        <input type="date" id="startDate" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700">
+                    </div>
+                    <!-- Tanggal Akhir -->
+                    <div>
+                        <label for="endDate" class="text-sm font-medium text-slate-700 block mb-1">Sampai Tanggal</label>
+                        <input type="date" id="endDate" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700">
+                    </div>
+                </form>
+                 <!-- === AKHIR PERUBAHAN === -->
+            </div>
+            
             <div id="galleryContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 <!-- Kartu file akan dimuat di sini oleh JavaScript -->
                 <p class="text-slate-500 col-span-full">Memuat file...</p>
@@ -144,32 +162,26 @@
         </div>
     </div>
 
-    <!-- === PENAMBAHAN BARU: MODAL OPSI DOWNLOAD === -->
+    <!-- Modal Opsi Download -->
     <div id="downloadModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
         <div class="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full m-4">
             <h3 class="text-lg font-semibold text-slate-900 mb-2">Pilih Opsi Download</h3>
             <p class="text-sm text-slate-600 mb-6">Pilih versi file yang ingin Anda unduh.</p>
             
-            <!-- Tombol-tombol ini akan diisi href oleh JS -->
             <div class="flex flex-col space-y-3">
-                <!-- Tombol Watermark (hanya tampil untuk gambar) -->
                 <a id="btnDownloadWatermark" href="#" download class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-700 font-medium">
                     Download (dengan Watermark)
                 </a>
-                <!-- Tombol Original (selalu tampil) -->
                 <a id="btnDownloadOriginal" href="#" download class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium">
                     Download (Original)
                 </a>
             </div>
 
-            <!-- Tombol Batal -->
             <div class="mt-6 text-center">
                 <button type="button" id="cancelDownloadBtn" class="px-4 py-2 text-sm text-slate-600 hover:underline font-medium">Batal</button>
             </div>
         </div>
     </div>
-    <!-- === AKHIR PENAMBAHAN === -->
-
 
 </body>
 </html>

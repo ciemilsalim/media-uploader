@@ -3,14 +3,14 @@
 namespace App\Http\Controllers;
 use Illuminate\Routing\Controller;
 use App\Models\Media;
-use Illuminate\Http\Request;
+use Illuminate\Http\Request; // <-- PENTING: Pastikan ini ada
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
-use Carbon\Carbon;
+use Carbon\Carbon; // <-- PENTING: Pastikan ini ada
 use Intervention\Image\Interfaces\ImageInterface;
-use Illuminate\Support\Facades\Http; // --- BARU: Tambahkan HTTP Client ---
+use Illuminate\Support\Facades\Http; 
 
 class MediaController extends Controller
 {
@@ -26,11 +26,56 @@ class MediaController extends Controller
     /**
      * Mengambil semua data media sebagai JSON.
      */
-    public function getAllMedia()
+    public function getAllMedia(Request $request) // <-- Tambahkan Request
     {
-        // Mengambil semua media, diurutkan dari yang terbaru
-        // (Sekarang kita urutkan berdasarkan 'taken_at', baru 'created_at')
-        $media = Media::latest('taken_at')->latest('created_at')->get();
+        // --- LOGIKA PENCARIAN & LIMIT BARU ---
+        
+        // 1. Ambil semua parameter input
+        $search = $request->input('search');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        // 2. Mulai query
+        $query = Media::query();
+
+        // 3. Filter berdasarkan teks (jika ada)
+        $query->when($search, function($q) use ($search) {
+            $q->where(function($subq) use ($search) {
+                $subq->where('description', 'like', "%{$search}%")
+                     ->orWhere('file_name', 'like', "%{$search}%");
+            });
+        });
+
+        // 4. Filter berdasarkan tanggal
+        // Menggunakan 'whereDate' untuk membandingkan tanggal saja (mengabaikan waktu)
+        
+        // Jika hanya tanggal mulai yang diisi
+        $query->when($startDate && !$endDate, function($q) use ($startDate) {
+            $q->whereDate('taken_at', '>=', Carbon::parse($startDate));
+        });
+
+        // Jika hanya tanggal akhir yang diisi
+        $query->when(!$startDate && $endDate, function($q) use ($endDate) {
+            $q->whereDate('taken_at', '<=', Carbon::parse($endDate));
+        });
+
+        // Jika kedua tanggal diisi (rentang)
+        $query->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+            $q->whereDate('taken_at', '>=', Carbon::parse($startDate))
+              ->whereDate('taken_at', '<=', Carbon::parse($endDate));
+        });
+
+        // 5. Logika Limit
+        // HANYA limit ke 3 jika TIDAK ADA parameter pencarian sama sekali
+        if (!$search && !$startDate && !$endDate) {
+            $query->limit(3);
+        }
+
+        // 6. Selalu urutkan dari yang terbaru dan ambil datanya
+        $media = $query->latest('taken_at')->latest('created_at')->get();
+        
+        // --- AKHIR LOGIKA BARU ---
+        
         return response()->json($media);
     }
 
@@ -40,7 +85,7 @@ class MediaController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'file' => 'required|mimetypes:image/jpeg,image/png,image/gif,video/mp4,video/quicktime,video/x-msvideo,video/webm|max:25600',
+            'file' => 'required|mimetypes:image/jpeg,image/png,image/gif,video/mp4,video/quicktime,video/x-msvideo,video/webm|max:25600', // 25MB Max
             'description' => 'nullable|string|max:255',
             // Validasi data baru
             'taken_at' => 'nullable|date',
@@ -117,42 +162,48 @@ class MediaController extends Controller
         }
 
         // --- PERBAIKAN PATH ---
+        // Ambil path lengkap file dari storage
         $originalFilePath = Storage::disk('public')->path(Str::after($media->file_path, 'public/'));
         // --- AKHIR PERBAIKAN ---
 
         try {
             // --- PERBAIKAN V3: SINTAKS CONSTRUCTOR & READ ---
+            // 2. Gunakan driver baru saat membuat manager
             $manager = new ImageManager(new Driver());
+            
+            // 3. Gunakan 'read()' (V3) bukan 'make()' (V2)
             $img = $manager->read($originalFilePath);
             // --- AKHIR PERBAIKAN ---
 
 
-            // --- KODE WATERMARK SEKARANG DIAKTIFKAN ---
+            // Siapkan data teks
+            $imageWidth = $img->width();
             
             // Siapkan informasi teks
             $description = $media->description ?? 'Tanpa Deskripsi';
             
+            // (Perbaikan $casts di Media.php akan menangani ini)
             $takenAt = $media->taken_at 
                             ? $media->taken_at->locale('id')->isoFormat('D MMM YYYY, HH:mm') 
                             : 'Waktu tidak tersedia';
 
             // --- BARU: REVERSE GEOCODING ---
-            $locationLines = []; // Array untuk semua baris lokasi
+            $locationLines = []; // Simpan semua baris lokasi di sini
             if ($media->latitude && $media->longitude) {
                 try {
                     $apiKey = config('app.locationiq_api_key'); // Ambil dari config/app.php
-                    if (empty($apiKey)) {
+                    if (!$apiKey) {
                         throw new \Exception('LOCATIONIQ_API_KEY tidak diatur di .env atau config/app.php');
                     }
 
                     $url = "https://us1.locationiq.com/v1/reverse.php";
-                    // Panggil API
+                    // Panggil API menggunakan Guzzle (via helper Http Laravel)
                     $response = Http::timeout(5)->get($url, [ // Timeout 5 detik
                         'key' => $apiKey,
                         'lat' => $media->latitude,
                         'lon' => $media->longitude,
                         'format' => 'json',
-                        'accept-language' => 'id', // Minta data dalam Bahasa Indonesia
+                        'accept-language' => 'id', // Minta hasil dalam Bahasa Indonesia
                         'normalizecity' => 1,
                     ]);
 
@@ -185,7 +236,7 @@ class MediaController extends Controller
                     }
                 } catch (\Exception $geoEx) {
                     // Gagal total (misal key tidak ada / timeout), fallback ke GPS saja
-                    \Log::error('LocationIQ API Error: '. $geoEx->getMessage());
+                    \Log::error("Reverse Geocoding Gagal: " . $geoEx->getMessage());
                     $locationLines[] = "GPS: {$media->latitude}, {$media->longitude}";
                     $locationLines[] = "(Gagal mengambil data alamat)";
                 }
@@ -195,30 +246,31 @@ class MediaController extends Controller
             // --- AKHIR REVERSE GEOCODING ---
 
             // --- PERUBAHAN: Gabungkan teks + credit ---
-            $watermarkText = "Deskripsi: {$description}\n";
-            $watermarkText .= "Waktu: {$takenAt}\n";
-            $watermarkText .= implode("\n", $locationLines); // Gabungkan semua baris lokasi
-            $watermarkText .= "\n"; // Tambah 1 spasi (baris kosong)
-            $watermarkText .= "createdBy Uploader-Zahradev"; // Tambah baris credit
+            $allTextLines = [];
+            $allTextLines[] = "Deskripsi: {$description}";
+            $allTextLines[] = "Waktu: {$takenAt}";
+            $allTextLines = array_merge($allTextLines, $locationLines); // Tambahkan semua baris lokasi
+            $allTextLines[] = ""; // Baris spasi kosong
+            $allTextLines[] = "createdBy Uploader-Zahradev"; // Tambah baris credit
+            
+            $watermarkText = implode("\n", $allTextLines);
+            $lineCount = count($allTextLines); // Hitung jumlah baris total
             // --- AKHIR PERUBAHAN ---
 
             // --- PERBAIKAN: BLOK DUPLIKAT DIHAPUS ---
-            // Blok kode lama (dari $takenAt sampai $watermarkText .= "GPS: {$location}";)
-            // telah dihapus dari sini untuk mencegah penimpaan $watermarkText.
+            // (Tidak ada kode duplikat di sini)
             // --- AKHIR PERBAIKAN ---
 
             // --- PERBAIKAN UTAMA: MENAMBAHKAN FONT ---
-            // Tentukan Path Font Anda
-            // PENTING: Anda HARUS meletakkan file .ttf di folder ini
+            // Tentukan path ke file font Anda
             $fontPath = public_path('fonts/Inter_28pt-Regular.ttf');
 
             if (!file_exists($fontPath)) {
-                // Jika font tidak ada, lempar error yang jelas
+                // Fallback atau error jika font tidak ditemukan
                 throw new \Exception('File font tidak ditemukan di ' . $fontPath);
             }
             
             // --- PERBAIKAN: UKURAN WATERMARK DINAMIS ---
-            $imageWidth = $img->width();
             
             // 1. Ukuran Font Dinamis: (mis: 1/45 dari lebar, dengan min 16px)
             $fontSize = max(16, (int) round($imageWidth / 45));
@@ -228,10 +280,9 @@ class MediaController extends Controller
             
             // --- PERUBAHAN: HITUNG TINGGI BOX BARU ---
             // 2 baris (Deskripsi, Waktu) + jumlah baris lokasi + 1 baris kosong + 1 baris credit
-            $lineCount = 2 + count($locationLines) + 2; 
             // Perkiraan tinggi per baris = 1.25 * $fontSize.
             $textBlockHeight = (int) round($fontSize * 1.25 * $lineCount);
-            $boxHeight = $textBlockHeight + ($padding * 2);
+            $boxHeight = $textBlockHeight + ($padding * 2); // Tinggi total = teks + padding atas & bawah
             // --- AKHIR PERUBAHAN ---
 
             // --- PERBAIKAN SINTAKS V3 (drawRectangle) ---
@@ -243,22 +294,21 @@ class MediaController extends Controller
             // --- AKHIR PERBAIKAN SINTAKS ---
 
             // Tentukan posisi teks (pojok kiri bawah, dengan padding)
-            // Gunakan $padding dan $fontSize dinamis
             $img->text($watermarkText, $padding, $img->height() - $padding, function($font) use ($fontPath, $fontSize) {
                 $font->file($fontPath); // PENTING: Aktifkan baris ini
-                $font->size($fontSize); // Gunakan $fontSize dinamis
+                $font->size($fontSize); // Ukuran font dinamis
                 $font->color('#ffffff'); // Warna putih
                 $font->align('left');
                 $font->valign('bottom');
             });
             // --- AKHIR PERBAIKAN UTAMA ---
             
-            // --- AKHIR DARI KODE WATERMARK ---
-
+            // --- PERBAIKAN: Mendapatkan ekstensi file ---
 
             // --- PERBAIKAN: Undefined property $img->extension ---
             $extension = pathinfo($media->file_name, PATHINFO_EXTENSION);
-            if (empty($extension) || !in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif'])) {
+            $extension = strtolower($extension); // Pastikan lowercase
+            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                 $extension = 'jpg'; // Default ke jpg jika ekstensi tidak valid/kosong
             }
 
@@ -272,18 +322,18 @@ class MediaController extends Controller
             // 2. Ambil data mentah (raw) sebagai string
             $imageData = $encoded->toString();
             
-            // 3. Ambil mime type
+            // 3. Ambil mimetype
             $mime = $encoded->mimetype();
 
             // 4. Buat response manual menggunakan helper Laravel
-            return response($imageData, 200, [
-                'Content-Type' => $mime,
-                'Content-Disposition' => 'attachment; filename="'.$newFileName.'"',
-            ]);
+            return response($imageData)
+                ->header('Content-Type', $mime)
+                ->header('Content-Disposition', 'attachment; filename="'.$newFileName.'"')
+                ->header('Content-Length', strlen($imageData));
             // --- AKHIR PERBAIKAN ---
 
         } catch (\Throwable $e) { // --- PERBAIKAN: Menangkap \Throwable (lebih luas dari \Exception)
-            // Log error seperti biasa
+            // Jika ada error, catat dan redirect kembali
             \Log::error("Error generating watermark for media ID {$media->id}: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString() // Log trace lengkap untuk info lebih
             ]);

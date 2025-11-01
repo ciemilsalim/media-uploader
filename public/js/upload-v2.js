@@ -1,11 +1,10 @@
 /*
-File JavaScript V7 (Lengkap)
+File JavaScript V8
 Perubahan:
-- Tombol Download sekarang memicu Modal Opsi Download.
-- Fungsi baru showDownloadOptions() ditambahkan.
-- Modal akan menampilkan/menyembunyikan tombol Watermark
-  berdasarkan tipe file (gambar atau video).
-- PERBAIKAN V7: Menghapus .onclick dari tombol download agar href bisa berjalan.
+- Penambahan input tanggal (startDate, endDate).
+- `loadFiles` sekarang menerima 3 parameter.
+- URL API dibuat dinamis menggunakan URLSearchParams.
+- Listener baru untuk input tanggal.
 */
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -26,6 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusMessage = document.getElementById('statusMessage');
     const uploadForm = document.getElementById('uploadForm');
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    // --- BARU: Elemen Pencarian & Tanggal ---
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('searchInput');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    // --- AKHIR BARU ---
+
 
     let filesToUpload = []; // Array untuk antrian file {file, taken_at}
 
@@ -343,18 +350,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // 8. Memuat dan Menampilkan File dari Server Laravel
-    async function loadFiles() {
+    // --- PERUBAHAN: Terima `searchTerm` dan tanggal ---
+    async function loadFiles(searchTerm = '', startDate = '', endDate = '') {
         if (!galleryContainer) return;
         galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Memuat file...</p>';
+        
+        // Buat URL dinamis dengan parameter pencarian
+        let url = '/media';
+        const params = new URLSearchParams();
+        
+        if (searchTerm.trim() !== '') {
+            params.append('search', searchTerm.trim());
+        }
+        if (startDate) {
+            params.append('start_date', startDate);
+        }
+        if (endDate) {
+            params.append('end_date', endDate);
+        }
+
+        const queryString = params.toString();
+        if (queryString) {
+            url += `?${queryString}`;
+        }
+        
         try {
-            const response = await fetch('/media');
+            const response = await fetch(url); // Gunakan URL dinamis
             if (!response.ok) {
                 throw new Error('Gagal memuat data galeri.');
             }
             const files = await response.json();
             galleryContainer.innerHTML = ''; 
             if (files.length === 0) {
-                galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Belum ada file yang diunggah.</p>';
+                // Beri pesan yang berbeda jika ini adalah hasil pencarian
+                if (searchTerm.trim() !== '' || startDate || endDate) {
+                    galleryContainer.innerHTML = `<p class="text-slate-500 col-span-full">Tidak ada file yang cocok dengan kriteria pencarian.</p>`;
+                } else {
+                    galleryContainer.innerHTML = '<p class="text-slate-500 col-span-full">Menampilkan 3 file terbaru. Belum ada file.</p>';
+                }
                 return;
             }
             files.forEach(fileData => {
@@ -366,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             galleryContainer.innerHTML = '<p class="text-red-500 col-span-full">Gagal memuat data galeri. Coba refresh halaman.</p>';
         }
     }
+    // --- AKHIR PERUBAHAN ---
 
     // 9. Membuat Tampilan Kartu File (Desain Elegan)
     function createFileCard(docId, data) {
@@ -522,16 +556,57 @@ document.addEventListener('DOMContentLoaded', () => {
         // Kita gunakan .onclick agar listener tidak menumpuk
         btnCancel.onclick = closeModal;
         
-        // --- PERBAIKAN V7 ---
-        // JANGAN tambahkan .onclick ke tombol download (btnOriginal & btnWatermark)
-        // Biarkan aksi default <a> (mengikuti href) berjalan.
-        // Modal akan tetap terbuka, dan user bisa menutupnya dengan "Batal".
+        // --- PERBAIKAN: Hapus .onclick agar download berfungsi ---
+        // Biarkan <a> berperilaku normal
+        // btnOriginal.onclick = closeModal;
+        // btnWatermark.onclick = closeModal;
         // --- AKHIR PERBAIKAN ---
     }
     // --- AKHIR PENAMBAHAN ---
 
 
+    // --- BARU: FUNGSI DAN EVENT LISTENER PENCARIAN ---
+    
+    // Fungsi terpusat untuk memicu pencarian
+    function triggerSearch() {
+        if (!searchInput || !startDateInput || !endDateInput) return;
+        const searchTerm = searchInput.value;
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        loadFiles(searchTerm, startDate, endDate);
+    }
+
+    if (searchForm) {
+        // Mencegah reload halaman saat menekan Enter
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            triggerSearch();
+        });
+    }
+
+    if (searchInput) {
+        // Memicu pencarian saat pengguna mengklik tombol 'x' (bawaan type="search")
+        searchInput.addEventListener('search', () => {
+            triggerSearch();
+        });
+    }
+
+    // Listener baru untuk input tanggal
+    if (startDateInput) {
+        startDateInput.addEventListener('change', () => {
+            triggerSearch();
+        });
+    }
+    if (endDateInput) {
+        endDateInput.addEventListener('change', () => {
+            triggerSearch();
+        });
+    }
+    // --- AKHIR BARU ---
+
+
     // Muat galeri saat halaman pertama kali dibuka
+    // Ini akan memuat 3 file terbaru secara default
     loadFiles();
 });
 
